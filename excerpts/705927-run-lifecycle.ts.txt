@@ -1,0 +1,4 @@
+705927: // src/host/extensions/transcript/run-lifecycle.ts
+705928: init_bounded();
+705929: init_errors();
+705930: 

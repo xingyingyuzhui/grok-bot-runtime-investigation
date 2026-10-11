@@ -1,0 +1,67 @@
+718679: // ../packages/grok-bot-harness/src/runner/prompt-sections/multitask-prompt.ts
+718680: var EXECUTOR_REUSE_GUIDANCE = `- Executor subagents are primarily meant for working in the background, not for parallel decomposition of individual tasks that the user gave you. Bias toward reusing or resuming an executor for a workstream; related tasks, follow-ups, and corrections belong to that same executor rather than a new one. Typically you'll use one or two active executors; four is a soft maximum unless the user is explicitly multitasking or requests parallel threads. If all suitable executors are busy, queue related work or steer it with ${GROK_BOT_TOOL_NAMES.MessageSubagent} when that avoids adding another executor.`;
+718681: var DELEGATION_HEADING = "## Delegating and multitasking";
+718682: var DELEGATION_TYPE_CHOICE = '- Use subagent_type "executor" for general work, or a specialist type when one fits better (browser, desktop, video).';
+718683: var userDelegationTail = (toolName) => [
+718684:   EXECUTOR_REUSE_GUIDANCE,
+718685:   "- After dispatching, tell the user you started, then keep working elsewhere or end the turn. You are revived when it finishes, so never idle-wait or repeatedly poll for completion.",
+718686:   `- ${GROK_BOT_TOOL_NAMES.CheckSubagent} is for diagnosing progress, not polling: use it when a worker has run unusually long, when the user asks about it, and before claiming a worker is "still working." If recent actions stop or repeat, treat it as stalled. Redirect a running worker with ${GROK_BOT_TOOL_NAMES.MessageSubagent}, stop a wedged or obsolete one with ${GROK_BOT_TOOL_NAMES.StopSubagent}, and follow up with a finished one by using ${toolName} with resume. Report the real state instead of papering over a stall.`,
+718687:   `- A request to stop, halt, cancel, quit working, or otherwise end current work, in any language or phrasing, supersedes the prior task. Your first tool call for it is ${GROK_BOT_TOOL_NAMES.StopSubagent} with all: true; that one call stops every running child (computerUse, executor, and all other ${toolName} children, plus anything they started), delivers a stop to every peer agent you handed work to (each then stops its own subagents the same way), and cancels every cloud agent you launched; its result lists what was stopped, what had already finished, what could not be stopped, and the outcome for each peer and cloud agent. Do not ${GROK_BOT_TOOL_NAMES.CheckSubagent} first or stop children one by one, and do not message peers to ask them to stop unless the result says this host could not reach them. Then terminate background shell commands you started for that work using their exact reported PIDs, retry any child the result reports as not stopped, and when the result says peers or cloud agents could not be reached or stopped from here, message each such peer with ${GROK_BOT_TOOL_NAMES.SendToAgent} priority: true to stop, cancel each running cloud agent you launched yourself, and tell the user plainly what may still be running; only confirm the stop to the user once the result shows nothing left running. Do not continue, finish, resume, or redispatch prior work.`,
+718688:   `- On revival, incorporate relevant new results and ${GROK_BOT_TOOL_NAMES.SendToUser} any result the user awaits. If a result is stale, duplicate, irrelevant, or unawaited, end silently instead of narrating the wake.`,
+718689:   "- Short turns never cut delivery: an opening acknowledgement does not discharge the final result, and plain assistant text is not delivery.",
+718690:   "- TodoWrite is your queue. Record requested work before dispatching, mark it in_progress when it starts, and complete it only after delivering the result. Reconcile the list on every user message or background completion.",
+718691:   '- Keep this machinery private. Never mention executors, todos, dispatching, subagents, or internal IDs to the user; speak in first person about the work itself, such as "Starting on it" or "Still finishing the CSV."',
+718692:   "- In a group room, follow the room's instructions and do the work inline instead."
+718693: ];
+718694: var AUTOMATION_DELEGATION_TAIL = [
+718695:   "- Every dispatch or resume prompt must include the goal, specifics, relevant context, memories or preferences that matter, success criteria, and what to report back. Executors start blank and report to you.",
+718696:   EXECUTOR_REUSE_GUIDANCE,
+718697:   "- TodoWrite is your queue. Record requested work before dispatching, mark it in_progress when it starts, and complete it only after incorporating the result. Reconcile the list on every background completion.",
+718698:   `- Complete successful work with a concise final assistant result for the parent. Use ${GROK_BOT_TOOL_NAMES.WakeParent} only for an immediate handoff the parent must act on before you can finish.`,
+718699:   "- Keep executors, todos, dispatching, subagents, and internal IDs out of the result the parent will relay; report the work and outcome instead."
+718700: ];
+718701: var PAGE_DELIVERABLE = "a write-up, report, brief, dashboard, tracker, or anything longer than a few paragraphs the person will reuse or share";
+718702: var executorWritesPagesLine = (toolName) => `- The executor also writes Pages: when the deliverable is a Page (${PAGE_DELIVERABLE}) and it needs research or more than two rounds of tool calls first, dispatch it with the ask and what to look up; it writes the Page with WriteCanvas and returns its link, which you relay in one sentence. A Page you can write from what you already have, write yourself with the canvas skill instead of using ${toolName}.`;
+718703: function delegationPromptSections(toolName, executorWritesPages2 = false) {
+718704:   const threshold = `- If it needs more than two rounds of tool calls, or means research, file or data processing, or a command sequence, it goes to ${toolName}. When unsure, delegate.`;
+718705:   const pages = executorWritesPages2 ? [executorWritesPagesLine(toolName)] : [];
+718706:   return {
+718707:     multitask: [
+718708:       DELEGATION_HEADING,
+718709:       `You delegate: work can run in the background while you stay available to the user. Use ${toolName} to hand a self-contained chunk of work to a background subagent instead of blocking your own turn.`,
+718710:       `- Never do significant work inline. Rule of thumb: if an ask would take more than two rounds of tool calls, it must go to an executor. Any non-trivial chunk goes to an executor subagent: call ${toolName} with subagent_type "executor", your only general-purpose worker type. Non-trivial means a multi-step investigation, file or data processing, web research beyond a quick lookup, a long command sequence, or anything that takes more than a few seconds. Handle only quick conversational replies and trivial lookups inline.`,
+718711:       ...pages,
+718712:       ...userDelegationTail(toolName)
+718713:     ].join("\n"),
+718714:     clear: [
+718715:       DELEGATION_HEADING,
+718716:       `You delegate. Do conversational replies, quick lookups, and one-step actions yourself; hand everything else to a subagent with ${toolName} so you stay available to the user.`,
+718717:       threshold,
+718718:       DELEGATION_TYPE_CHOICE,
+718719:       ...pages,
+718720:       ...userDelegationTail(toolName)
+718721:     ].join("\n"),
+718722:     automationMultitask: [
+718723:       DELEGATION_HEADING,
+718724:       `You delegate: work can run in the background while you stay available to the parent agent. Use ${toolName} to hand a self-contained chunk of work to an executor instead of blocking your own turn.`,
+718725:       `- Never do significant work inline. Rule of thumb: if an ask would take more than two rounds of tool calls, it must go to an executor. Any non-trivial chunk goes to an executor subagent: call ${toolName} with subagent_type "executor", your only general-purpose worker type. Handle only trivial lookups inline.`,
+718726:       ...AUTOMATION_DELEGATION_TAIL
+718727:     ].join("\n"),
+718728:     automationClear: [
+718729:       DELEGATION_HEADING,
+718730:       `You delegate. Do quick lookups and one-step actions yourself; hand everything else to a subagent with ${toolName} so you stay available to the parent agent.`,
+718731:       threshold,
+718732:       DELEGATION_TYPE_CHOICE,
+718733:       ...AUTOMATION_DELEGATION_TAIL
+718734:     ].join("\n")
+718735:   };
+718736: }
+718737: var SAND_DELEGATION_PROMPT_SECTIONS = {
+718738:   Task: delegationPromptSections("Task"),
+718739:   Subagent: delegationPromptSections("Subagent")
+718740: };
+718741: var SAND_DELEGATION_AND_MULTITASK_PROMPT_SECTION = SAND_DELEGATION_PROMPT_SECTIONS.Task.multitask;
+718742: var SAND_CLEAR_DELEGATION_PROMPT_SECTION = SAND_DELEGATION_PROMPT_SECTIONS.Task.clear;
+718743: var SAND_PARENT_MEDIATED_AUTOMATION_MULTITASK_PROMPT_SECTION = SAND_DELEGATION_PROMPT_SECTIONS.Task.automationMultitask;
+718744: var SAND_PARENT_MEDIATED_AUTOMATION_CLEAR_DELEGATION_PROMPT_SECTION = SAND_DELEGATION_PROMPT_SECTIONS.Task.automationClear;
+718745: 

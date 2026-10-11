@@ -1,0 +1,4 @@
+701290: // src/host/extensions/transcript/agent-to-agent-messaging.ts
+701291: var import_node_crypto67 = require("node:crypto");
+701292: init_bounded();
+701293: 

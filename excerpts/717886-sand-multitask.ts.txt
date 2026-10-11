@@ -1,0 +1,36 @@
+717886: // ../packages/grok-bot-harness/src/sand-multitask.ts
+717887: var EXECUTOR_SUBAGENT_TYPE = "executor";
+717888: function hasExecutorSubagent(configs) {
+717889:   return configs.some(
+717890:     (config3) => getSubagentTypeName(config3.subagent_type) === EXECUTOR_SUBAGENT_TYPE
+717891:   );
+717892: }
+717893: function createSandMultitaskTodoTool(resourceAccessor, stateHandler, reminders) {
+717894:   const tool = createUpdateTodosTool(resourceAccessor, stateHandler);
+717895:   return {
+717896:     ...tool,
+717897:     descriptionGenerator: () => SAND_MULTITASK_TODO_DESCRIPTION,
+717898:     ...allowsSystemReminder(reminders, "todoCleanup") ? {} : {
+717899:       render: async (ctx, output, props) => {
+717900:         const result = await tool.render(ctx, output, props);
+717901:         return { content: result.content, isError: result.isError };
+717902:       }
+717903:     }
+717904:   };
+717905: }
+717906: var SAND_MULTITASK_TODO_DESCRIPTION = [
+717907:   "Your task queue: the durable list of everything the user has asked for, across all your parallel streams of work.",
+717908:   "",
+717909:   "When to use:",
+717910:   "- The moment a request arrives, record it as a todo before dispatching or starting it.",
+717911:   "- Update statuses in real time: in_progress when its work starts, completed the moment its result is delivered to the user, cancelled when the user drops it or changes their mind.",
+717912:   "- On every wake (a user message or a finished background task), reconcile the list first: what's running, what landed, what to dispatch next.",
+717913:   "",
+717914:   "States and parallelism:",
+717915:   "- pending: not yet started. in_progress: actively being worked, by you or a background worker. completed: result delivered to the user. cancelled: no longer needed.",
+717916:   "- SEVERAL todos are normally in_progress at once, one per independent stream running in parallel (each dispatched worker, plus at most one thing you are doing inline). Never serialize independent streams just to keep a single one in_progress.",
+717917:   "- Keep the list current rather than perfect: cancel stale items instead of leaving them pending, and prune long-finished ones when the list gets noisy.",
+717918:   "",
+717919:   "Skip it for purely conversational replies and trivial one-step lookups you answer inline immediately."
+717920: ].join("\n");
+717921: 

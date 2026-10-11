@@ -1,0 +1,61 @@
+703639: // src/host/extensions/transcript/turn-runtime.ts
+703640: var connectCodeTag = brandedEnumOf(
+703641:   Object.values(Code).filter((value) => typeof value === "string"),
+703642:   "Other"
+703643: );
+703644: function connectCodeOf(error42) {
+703645:   const connectError = findBackendConnectError(error42, false);
+703646:   return connectError == null ? void 0 : connectCodeTag(Code[connectError.code]);
+703647: }
+703648: function turnTrayTitleKind(errorKind) {
+703649:   switch (errorKind) {
+703650:     case "provider_overloaded":
+703651:       return "model_provider_overloaded";
+703652:     case "backend_unreachable":
+703653:       return "backend_unreachable";
+703654:     default:
+703655:       return "bot_failed_to_respond";
+703656:   }
+703657: }
+703658: function classifyAgentError(error42) {
+703659:   if (isCheckpointPublicationFailure(error42)) {
+703660:     return SandError.checkpointPublicationFailed();
+703661:   }
+703662:   if (isBackendUnreachableError(error42)) {
+703663:     return SandError.turnBackendUnreachable({ errno: brandedErrno(findSystemErrno(error42)) });
+703664:   }
+703665:   if (isProviderCapacityError(error42)) {
+703666:     const retryAfterMs = serverRetryAfterMsFromError(error42);
+703667:     if (retryAfterMs !== void 0) {
+703668:       return SandError.backendCapacityDeferred({
+703669:         connectCode: connectCodeOf(error42),
+703670:         retryAfterMs
+703671:       });
+703672:     }
+703673:     return SandError.providerOverloaded({ connectCode: connectCodeOf(error42) });
+703674:   }
+703675:   if (isFirstTokenStallError(error42)) {
+703676:     return SandError.firstTokenStall();
+703677:   }
+703678:   if (isStreamIdleError(error42)) {
+703679:     return SandError.streamIdleStall();
+703680:   }
+703681:   if (isContextOverflowDeadEnd(error42)) {
+703682:     return SandError.contextWindowOverflow();
+703683:   }
+703684:   if (isConversationTooLargeRefusal(error42)) {
+703685:     return SandError.conversationTooLarge();
+703686:   }
+703687:   const connectCode = connectCodeOf(error42);
+703688:   if (isRetryableProviderError(error42)) {
+703689:     if (isTransientStreamError(error42)) {
+703690:       return SandError.streamReset({ connectCode, errno: brandedErrno(findSystemErrno(error42)) });
+703691:     }
+703692:     return SandError.turnRetryable({ connectCode });
+703693:   }
+703694:   if (connectCode !== void 0) {
+703695:     return SandError.backendRejected({ connectCode });
+703696:   }
+703697:   return SandError.agentUnclassified();
+703698: }
+703699: 

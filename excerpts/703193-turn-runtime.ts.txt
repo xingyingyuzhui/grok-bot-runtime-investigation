@@ -1,0 +1,5 @@
+703193: // src/host/extensions/transcript/turn-runtime.ts
+703194: init_esm2();
+703195: init_bounded();
+703196: init_system_errno();
+703197: 

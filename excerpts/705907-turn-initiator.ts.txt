@@ -1,0 +1,20 @@
+705907: // ../packages/grok-bot-harness/src/runner/turn-initiator.ts
+705908: var USER_INITIATED_REQUEST_SOURCES = /* @__PURE__ */ new Set([
+705909:   "turn",
+705910:   "automation",
+705911:   "voice-call",
+705912:   "connector"
+705913: ]);
+705914: function classifySandTurnInitiator(options2) {
+705915:   if (options2.isGroupMemberTurn === true) return "subagent";
+705916:   if (options2.isTopLevelAutomationSubagent === true && options2.requestSource === "automation") {
+705917:     return "user";
+705918:   }
+705919:   if (options2.isSubagentRunner) return "subagent";
+705920:   if (options2.requestSource === "agent") return "agent_peer";
+705921:   if (options2.requestSource !== void 0 && USER_INITIATED_REQUEST_SOURCES.has(options2.requestSource)) {
+705922:     return "user";
+705923:   }
+705924:   return "other";
+705925: }
+705926: 

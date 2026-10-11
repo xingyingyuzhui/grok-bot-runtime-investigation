@@ -1,0 +1,26 @@
+# Local files and dependency caches
+.DS_Store
+node_modules/
+__pycache__/
+*.pyc
+
+# Credentials and user runtime state
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+runtime-snapshot.json
+sand-data/
+agent-data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# Collection archives
+*.zip
+*.tar.gz

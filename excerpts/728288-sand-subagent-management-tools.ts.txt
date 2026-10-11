@@ -1,0 +1,318 @@
+728288: // ../packages/grok-bot-harness/src/runner/tools/sand-subagent-management-tools.ts
+728289: function elapsedLabel(elapsedMs3) {
+728290:   const totalSeconds = Math.max(0, Math.round(elapsedMs3 / 1e3));
+728291:   if (totalSeconds < 90) return `${totalSeconds}s`;
+728292:   const minutes = Math.floor(totalSeconds / 60);
+728293:   const seconds = totalSeconds % 60;
+728294:   return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+728295: }
+728296: function describeRunningSubagent(info2, options2) {
+728297:   const header = `- ${info2.subagentId} [${info2.subagentType}] "${info2.title}": running for ${elapsedLabel(info2.elapsedMs)}, ${info2.toolCallCount} tool call(s)`;
+728298:   if (!options2.detailed) return header;
+728299:   const lines2 = [header];
+728300:   if (info2.recentActivity.length > 0) {
+728301:     lines2.push("  Recent activity (oldest first):");
+728302:     for (const entry of info2.recentActivity) {
+728303:       lines2.push(`    ${entry}`);
+728304:     }
+728305:   } else {
+728306:     lines2.push("  No tool activity recorded yet.");
+728307:   }
+728308:   if (info2.transcriptPath != null) {
+728309:     lines2.push(`  Full transcript (read it for the complete play-by-play): ${info2.transcriptPath}`);
+728310:   } else if (info2.transcriptReadable === true) {
+728311:     lines2.push(
+728312:       `  Full transcript: call ${GROK_BOT_TOOL_NAMES.ReadTranscript} with subagent_id=${info2.subagentId} for the complete play-by-play.`
+728313:     );
+728314:   }
+728315:   return lines2.join("\n");
+728316: }
+728317: function notRunningMessage(subagentId, running) {
+728318:   const base = `No subagent "${subagentId}" is currently running. It may have already finished (you're revived automatically with a finished subagent's result), or the id is wrong.`;
+728319:   if (running.length === 0) {
+728320:     return `${base} No subagents are running right now.`;
+728321:   }
+728322:   return `${base} Currently running: ${running.map((info2) => info2.subagentId).join(", ")}.`;
+728323: }
+728324: var SUBAGENT_ID_ALIASES = [
+728325:   "agentId",
+728326:   "agent_id",
+728327:   "subagentId",
+728328:   "target",
+728329:   "target_id",
+728330:   "id",
+728331:   "to"
+728332: ];
+728333: var subagentIdAlias = defineShim({
+728334:   name: "subagent_id_alias",
+728335:   refusalReasons: ["conflicting_aliases"]
+728336: });
+728337: function normalizeSubagentIdArgs(value, ctx) {
+728338:   if (!isUnknownRecord(value) || value.subagent_id !== void 0) return value;
+728339:   const aliases = SUBAGENT_ID_ALIASES.filter((key) => value[key] !== void 0);
+728340:   if (aliases.length === 0) return value;
+728341:   const log5 = { aliases: aliases.join(",") };
+728342:   const ids = aliases.map((key) => value[key]);
+728343:   if (new Set(ids).size > 1) {
+728344:     const refusal3 = reportShim(
+728345:       subagentIdAlias.refused(
+728346:         "conflicting_aliases",
+728347:         "Pass the subagent's id once, as subagent_id (from the Task result that dispatched it).",
+728348:         log5
+728349:       )
+728350:     );
+728351:     ctx.addIssue({ code: external_exports.ZodIssueCode.custom, path: ["subagent_id"], message: refusal3.message });
+728352:     return value;
+728353:   }
+728354:   const aliasKeys = new Set(aliases);
+728355:   const normalized = {
+728356:     ...Object.fromEntries(Object.entries(value).filter(([key]) => !aliasKeys.has(key))),
+728357:     subagent_id: ids[0]
+728358:   };
+728359:   reportShim(subagentIdAlias.applied(normalized, { log: log5 }));
+728360:   return normalized;
+728361: }
+728362: var withSubagentIdAlias = (schema3) => external_exports.preprocess(normalizeSubagentIdArgs, schema3);
+728363: var checkSubagentParameters = (toolName) => external_exports.object({
+728364:   subagent_id: external_exports.string().trim().optional().describe(
+728365:     `The subagent's id, from the "Agent ID:" line of the ${toolName} result that dispatched it. Omit to list every subagent currently running.`
+728366:   )
+728367: });
+728368: var messageSubagentParameters = (toolName) => external_exports.object({
+728369:   subagent_id: external_exports.string().trim().min(1).describe(
+728370:     `The running subagent's id, from the "Agent ID:" line of the ${toolName} result that dispatched it.`
+728371:   ),
+728372:   message: external_exports.string().trim().min(1).describe(
+728373:     "The instruction to inject. The subagent interrupts what it is doing, reads this, and continues from where it was with its context intact."
+728374:   )
+728375: });
+728376: var stopSubagentParameters = (toolName) => external_exports.object({
+728377:   subagent_id: external_exports.string().trim().optional().describe(
+728378:     `One running subagent's id, from the "Agent ID:" line of the ${toolName} result that dispatched it. Omit it when all is true.`
+728379:   ),
+728380:   all: external_exports.boolean().optional().describe(
+728381:     `Set true to abort every background subagent you have running, in one call, instead of naming one, and with them, where this host can reach them, every other agent you handed work to: peers you messaged with priority and cloud agents you launched (the result says when it could not). Use this whenever the user asks you to stop, halt, cancel, or quit the current work: it stops each running child independently (computerUse, executor, and any other ${toolName} children, plus anything those children started), delivers a stop to each peer (which then stops its own subagents the same way), cancels each running cloud agent, and the result lists exactly which ids were stopped, which had already finished, and which could not be stopped and why. Do not combine with subagent_id.`
+728382:   )
+728383: }).refine((args) => args.all === true !== hasSubagentId(args.subagent_id), {
+728384:   message: "Pass exactly one of subagent_id or all: true."
+728385: });
+728386: function hasSubagentId(subagentId) {
+728387:   return subagentId !== void 0 && subagentId.length > 0;
+728388: }
+728389: function stoppedSubagentOf(info2) {
+728390:   return { subagentId: info2.subagentId, subagentType: info2.subagentType, title: info2.title };
+728391: }
+728392: function describeStoppedSubagent(subagent) {
+728393:   return `- ${subagent.subagentId} [${subagent.subagentType}] "${subagent.title}"`;
+728394: }
+728395: async function stopAllRunningSubagents(controller, args) {
+728396:   const running = await controller.listRunningSubagents();
+728397:   const stopped2 = [];
+728398:   const alreadyFinished = [];
+728399:   const failed2 = [];
+728400:   const [outcomes, delegated] = await Promise.all([
+728401:     Promise.all(
+728402:       running.map(async (info2) => {
+728403:         try {
+728404:           return { info: info2, result: await controller.abortSubagent(info2.subagentId) };
+728405:         } catch (error42) {
+728406:           return {
+728407:             info: info2,
+728408:             result: "failed",
+728409:             error: error42 instanceof Error ? error42.message : String(error42)
+728410:           };
+728411:         }
+728412:       })
+728413:     ),
+728414:     stopDelegatedWorkSafely(controller, args)
+728415:   ]);
+728416:   for (const outcome of outcomes) {
+728417:     const subagent = stoppedSubagentOf(outcome.info);
+728418:     switch (outcome.result) {
+728419:       case "ok":
+728420:         stopped2.push(subagent);
+728421:         break;
+728422:       case "not-running":
+728423:         alreadyFinished.push(subagent);
+728424:         break;
+728425:       case "failed":
+728426:         failed2.push({ ...subagent, error: outcome.error });
+728427:         break;
+728428:     }
+728429:   }
+728430:   return {
+728431:     stopped: stopped2,
+728432:     alreadyFinished,
+728433:     failed: failed2,
+728434:     delegated,
+728435:     ...controller.stopDelegatedWork === void 0 ? { delegatedWorkUnavailable: true } : {}
+728436:   };
+728437: }
+728438: async function stopDelegatedWorkSafely(controller, args) {
+728439:   if (controller.stopDelegatedWork === void 0) return [];
+728440:   try {
+728441:     return await controller.stopDelegatedWork(args);
+728442:   } catch (error42) {
+728443:     return [
+728444:       {
+728445:         kind: "peer",
+728446:         id: "",
+728447:         name: "delegated work",
+728448:         result: "failed",
+728449:         detail: error42 instanceof Error ? error42.message : String(error42)
+728450:       }
+728451:     ];
+728452:   }
+728453: }
+728454: function delegatedWorkLabel(outcome) {
+728455:   if (outcome.kind === "cloud_agent") return `cloud agent ${outcome.id}`;
+728456:   if (outcome.id.length === 0) return outcome.name;
+728457:   return `${outcome.name} (agent ${outcome.id})`;
+728458: }
+728459: function describeDelegatedWork(outcome) {
+728460:   const label = delegatedWorkLabel(outcome);
+728461:   switch (outcome.result) {
+728462:     case "stopped":
+728463:       return outcome.kind === "cloud_agent" ? `- ${label}: run cancelled.` : `- ${label}: stop delivered; its turn is cancelled and its own subagents are being torn down.`;
+728464:     case "not_running":
+728465:       return `- ${label}: already idle, nothing to stop.`;
+728466:     case "unreachable":
+728467:       return `- ${label}: could NOT be stopped from here${outcome.detail === void 0 ? "" : ` (${outcome.detail})`}. Tell the user it may still be working.`;
+728468:     case "failed":
+728469:       return `- ${label}: stop failed${outcome.detail === void 0 ? "" : ` (${outcome.detail})`}. Retry ${GROK_BOT_TOOL_NAMES.StopSubagent} with all: true; if it fails again, tell the user it may still be working.`;
+728470:     case "stale":
+728471:       return `- ${label}: not contacted; that handoff is old${outcome.detail === void 0 ? "" : ` (${outcome.detail})`} and presumed finished. If the user says this peer is the one still working, message it with ${GROK_BOT_TOOL_NAMES.SendToAgent} priority: true to stop.`;
+728472:   }
+728473: }
+728474: function formatDelegatedWorkLines(delegated) {
+728475:   if (delegated.length === 0) return [];
+728476:   const stopped2 = delegated.filter((outcome) => outcome.result === "stopped").length;
+728477:   return [
+728478:     `Work you handed to other agents (${stopped2} of ${delegated.length} stopped):`,
+728479:     ...delegated.map(describeDelegatedWork)
+728480:   ];
+728481: }
+728482: var DELEGATED_WORK_UNAVAILABLE_LINE = `Agents you handed work to (peers you messaged with priority, cloud agents you launched) could NOT be reached from this host, so none of them was stopped here. If any may still be working, message each peer with ${GROK_BOT_TOOL_NAMES.SendToAgent} priority: true to stop, cancel each running cloud agent you launched yourself, and tell the user what may still be running.`;
+728483: var STOP_WITH_CLOUD_AGENT_LINE = `If the user named a Project or cloud agent, this call did not stop it, so stop it with ${GROK_BOT_TOOL_NAMES.CloudAgent} (cancel, or a reply with interrupt: true).`;
+728484: function formatStopAllSubagentsReport(report, options2) {
+728485:   const summary = summarizeStopAllSubagentsReport(report);
+728486:   const pointAtCloudAgent = options2?.cloudAgentToolAvailable === true && report.stopped.length === 0 && report.failed.length === 0 && report.delegated.length === 0;
+728487:   return pointAtCloudAgent ? `${summary}
+728488: ${STOP_WITH_CLOUD_AGENT_LINE}` : summary;
+728489: }
+728490: function summarizeStopAllSubagentsReport(report) {
+728491:   const total = report.stopped.length + report.alreadyFinished.length + report.failed.length;
+728492:   if (total === 0 && report.delegated.length === 0) {
+728493:     return report.delegatedWorkUnavailable === true ? `No background subagents are running, so there was nothing of your own to stop. ${DELEGATED_WORK_UNAVAILABLE_LINE} Background shell commands you started yourself are not subagents: terminate those with their reported PIDs.` : "No background subagents are running and no work is out with other agents, so there was nothing to stop. Background shell commands you started yourself are not subagents: terminate those with their reported PIDs.";
+728494:   }
+728495:   const lines2 = [];
+728496:   if (total === 0) {
+728497:     lines2.push("No background subagents of your own are running.");
+728498:   }
+728499:   if (report.stopped.length > 0) {
+728500:     lines2.push(
+728501:       `Stopped ${report.stopped.length} of ${total} running subagent(s). They are torn down, will not report back, and anything they dispatched or ran inside their own turn ends with them:`,
+728502:       ...report.stopped.map(describeStoppedSubagent)
+728503:     );
+728504:   }
+728505:   if (report.alreadyFinished.length > 0) {
+728506:     lines2.push(
+728507:       `${report.alreadyFinished.length} had already finished before the stop reached them (you are revived with a finished subagent's result separately):`,
+728508:       ...report.alreadyFinished.map(describeStoppedSubagent)
+728509:     );
+728510:   }
+728511:   if (report.failed.length > 0) {
+728512:     lines2.push(
+728513:       `${report.failed.length} could NOT be stopped and may still be running. Retry each with ${GROK_BOT_TOOL_NAMES.StopSubagent} and its id; if it still fails, tell the user which work may still be running:`,
+728514:       ...report.failed.map((subagent) => `${describeStoppedSubagent(subagent)}: ${subagent.error}`)
+728515:     );
+728516:   }
+728517:   lines2.push(...formatDelegatedWorkLines(report.delegated));
+728518:   if (report.delegatedWorkUnavailable === true) {
+728519:     lines2.push(DELEGATED_WORK_UNAVAILABLE_LINE);
+728520:   }
+728521:   lines2.push(
+728522:     "Do not resume, redispatch, or continue the stopped work unless the user asks again. Background shell commands you started yourself are not covered: terminate those with their reported PIDs."
+728523:   );
+728524:   return lines2.join("\n");
+728525: }
+728526: function createSubagentManagementTools(controller, options2) {
+728527:   const toolName = options2?.subagentToolName ?? "Task";
+728528:   return [
+728529:     defineCommunicateTool(controller, {
+728530:       id: "CHECK_SUBAGENT",
+728531:       name: GROK_BOT_TOOL_NAMES.CheckSubagent,
+728532:       description: `Check how a background subagent you dispatched (via ${toolName}) is doing without waiting for it to finish. Returns its status, how long it has been running, the tool calls it has made recently, and where to read its full play-by-play. Pass its id as subagent_id (the "Agent ID:" line of the ${toolName} result), or omit it to list every running subagent. Use this when a subagent, especially a computerUse one driving the box desktop, is taking a long time or might be stuck or looping, so you can decide whether to ${GROK_BOT_TOOL_NAMES.MessageSubagent} it or ${GROK_BOT_TOOL_NAMES.StopSubagent} it. This is read-only; it's not polling for completion (you're revived automatically when a subagent finishes).`,
+728533:       parameters: withSubagentIdAlias(checkSubagentParameters(toolName)),
+728534:       execute: async (_ctx, args, deps) => {
+728535:         const id = args.subagent_id;
+728536:         if (id == null || id.length === 0) {
+728537:           const running = await deps.listRunningSubagents();
+728538:           if (running.length === 0) {
+728539:             return "No background subagents are running right now.";
+728540:           }
+728541:           return [
+728542:             `${running.length} subagent(s) running:`,
+728543:             ...running.map((info3) => describeRunningSubagent(info3, { detailed: false })),
+728544:             "Pass a subagent_id to see its recent activity and transcript path."
+728545:           ].join("\n");
+728546:         }
+728547:         const info2 = await deps.getRunningSubagent(id);
+728548:         if (info2 == null) {
+728549:           return notRunningMessage(id, await deps.listRunningSubagents());
+728550:         }
+728551:         return describeRunningSubagent(info2, { detailed: true });
+728552:       }
+728553:     }),
+728554:     defineCommunicateTool(controller, {
+728555:       id: "MESSAGE_SUBAGENT",
+728556:       name: GROK_BOT_TOOL_NAMES.MessageSubagent,
+728557:       description: `Force a message into a running background subagent to course-correct it without aborting it. The subagent interrupts its current step, reads your message, and continues from where it was (its context is preserved, so it does not start over). Use this to unstick or redirect a subagent that is looping, stuck, or heading the wrong way, for example to tell a computerUse subagent to try a different element, that the user just signed in so it can proceed, or to wrap up and report what it has. Pass its id as subagent_id (the "Agent ID:" line of the ${toolName} result). You're still revived with its result when it finishes; to follow up AFTER a subagent has already finished, use ${toolName} with the resume parameter instead.`,
+728558:       parameters: withSubagentIdAlias(messageSubagentParameters(toolName)),
+728559:       execute: async (ctx, args, deps) => {
+728560:         if (deps.reviewSteer !== void 0) {
+728561:           const review = await deps.reviewSteer(ctx, {
+728562:             subagentId: args.subagent_id,
+728563:             message: args.message,
+728564:             toolCallId: deps.toolCallId
+728565:           });
+728566:           if (!review.allowed) {
+728567:             return review.reason;
+728568:           }
+728569:         }
+728570:         const result = await deps.steerSubagent(args.subagent_id, args.message);
+728571:         if (result === "not-running") {
+728572:           return notRunningMessage(args.subagent_id, await deps.listRunningSubagents());
+728573:         }
+728574:         return `Message delivered to subagent ${args.subagent_id}. It will interrupt what it's doing, take your message into account, and keep working. You'll be revived with its result when it finishes, so don't wait on it.`;
+728575:       }
+728576:     }),
+728577:     defineCommunicateTool(controller, {
+728578:       id: "STOP_SUBAGENT",
+728579:       name: GROK_BOT_TOOL_NAMES.StopSubagent,
+728580:       description: `Abort background subagents you dispatched (via ${toolName}). Pass one subagent's id as subagent_id (the "Agent ID:" line of the ${toolName} result) to kill a subagent that is wedged, looping with no progress, or no longer needed, for example a computerUse subagent stuck on the box desktop. Pass all: true instead to stop everything at once: every running subagent, plus, where this host can reach them, the other agents you handed work to (peers you messaged with priority and cloud agents you launched); the result says when it could not reach them. This is the call to make when the user asks you to stop, halt, cancel, or quit the current work, and it must be your first action for that request rather than checking or stopping children one by one. Stopping tears the subagent down and frees its box desktop window; it does not come back, and you are not separately revived for it (this tool's result is the confirmation, and with all: true it lists exactly which ids were stopped, which had already finished, which could not be stopped, and what happened to each peer and cloud agent). If you instead want a subagent to change course and keep going, use ${GROK_BOT_TOOL_NAMES.MessageSubagent}.`,
+728581:       parameters: withSubagentIdAlias(stopSubagentParameters(toolName)),
+728582:       execute: async (ctx, args, deps) => {
+728583:         const recordStopped = (subagentId2) => recordDelegationCompleted(ctx, {
+728584:           delegationKind: "subagent_stop",
+728585:           targetId: subagentId2,
+728586:           toolCallId: deps.toolCallId,
+728587:           outcome: "stopped"
+728588:         });
+728589:         if (args.all === true || !hasSubagentId(args.subagent_id)) {
+728590:           const report = await stopAllRunningSubagents(deps, { toolCallId: deps.toolCallId });
+728591:           for (const subagent of report.stopped) recordStopped(subagent.subagentId);
+728592:           return formatStopAllSubagentsReport(report, options2);
+728593:         }
+728594:         const subagentId = args.subagent_id;
+728595:         const result = await deps.abortSubagent(subagentId);
+728596:         if (result === "not-running") {
+728597:           return notRunningMessage(subagentId, await deps.listRunningSubagents());
+728598:         }
+728599:         recordStopped(subagentId);
+728600:         return `Stopping subagent ${subagentId}. It will be torn down and won't report back.`;
+728601:       }
+728602:     })
+728603:   ];
+728604: }
+728605: 

@@ -1,0 +1,297 @@
+701370: // src/host/extensions/transcript/agent-to-agent-messaging.ts
+701371: function cloudAgentExchangeRound(entries, bcId) {
+701372:   return entries.filter(
+701373:     (entry) => entry.kind === "message" && entry.toAgent?.kind === "cloud-agent" && entry.toAgent.id === bcId
+701374:   ).length;
+701375: }
+701376: function cloudAgentInboundEntryId(entries, bcId, report) {
+701377:   const digest = (0, import_node_crypto67.createHash)("sha256").update(`${bcId}
+701378: ${cloudAgentExchangeRound(entries, bcId)}
+701379: ${report}`).digest("hex").slice(0, 16);
+701380:   return `agent-inbound-${digest}`;
+701381: }
+701382: var PEER_MESSAGE_ID_LEDGER_CAP = 512;
+701383: var AgentToAgentMessaging = class {
+701384:   constructor(tm) {
+701385:     this.tm = tm;
+701386:   }
+701387:   tm;
+701388:   receivedPeerMessageIds = /* @__PURE__ */ new Set();
+701389:   peerDeliveriesInFlight = /* @__PURE__ */ new Map();
+701390:   async sendToAgent(fromAgentId, toAgentId, text3, images = [], priority = false) {
+701391:     const message = clampAgentMessage(text3);
+701392:     if (message.length === 0) return "Message was empty; nothing was sent.";
+701393:     if (toAgentId === fromAgentId) {
+701394:       return "An agent can't message itself.";
+701395:     }
+701396:     if (this.tm.sessions.isAgentGone(toAgentId)) {
+701397:       return "That agent no longer exists.";
+701398:     }
+701399:     const roster = await this.tm.sessionStore.listAgents();
+701400:     const target = roster.find((agent) => agent.id === toAgentId);
+701401:     if (target == null) {
+701402:       return `No agent found with id ${toAgentId}.`;
+701403:     }
+701404:     if (target.isGroup) {
+701405:       const ack = await this.tm.postToGroup(fromAgentId, toAgentId, message, priority);
+701406:       const notes = [];
+701407:       if (images.length > 0) {
+701408:         notes.push(
+701409:           `Note: the attached image${images.length === 1 ? " was" : "s were"} NOT delivered \u2014 group messages are text-only for now; send images to an agent directly.`
+701410:         );
+701411:       }
+701412:       if (priority) {
+701413:         notes.push("Note: priority is 1:1 only \u2014 this post did not interrupt members.");
+701414:       }
+701415:       return notes.length === 0 ? ack : `${ack} ${notes.join(" ")}`;
+701416:     }
+701417:     const sender = roster.find((agent) => agent.id === fromAgentId);
+701418:     const from2 = {
+701419:       id: fromAgentId,
+701420:       name: sender?.name ?? "A Bot"
+701421:     };
+701422:     const delivered = await this.appendInbound(toAgentId, {
+701423:       from: from2,
+701424:       text: message,
+701425:       ...images.length > 0 ? { images } : {},
+701426:       timestampMs: Date.now(),
+701427:       ...priority ? { priority: true } : {}
+701428:     });
+701429:     if (!delivered) return `${target.name} couldn't receive messages right now; nothing was sent.`;
+701430:     this.tm.productAnalytics.trackEvent("sand.agent_message.sent", {
+701431:       from_agent_id: brandedId(fromAgentId) ?? "invalid",
+701432:       to_agent_id: brandedId(toAgentId) ?? "invalid",
+701433:       is_group_target: false,
+701434:       is_priority: priority
+701435:     });
+701436:     this.appendAgentOutboundEntry(
+701437:       fromAgentId,
+701438:       { id: toAgentId, name: target.name, kind: "agent" },
+701439:       message,
+701440:       Date.now(),
+701441:       { images }
+701442:     );
+701443:     return priority ? `Sent to ${target.name} as a priority message \u2014 it jumps their queue and interrupts any routine or background work they are running; if they are mid-conversation with the user or handling another agent's message, it is delivered right after that. This is asynchronous \u2014 if they reply, it'll arrive later as a new message that wakes you; don't wait on it now.` : `Sent to ${target.name}. This is asynchronous \u2014 if they reply, it'll arrive later as a new message that wakes you; don't wait on it now.`;
+701444:   }
+701445:   async sendToRemotePeer(args) {
+701446:     const { fromAgentId, toAgentId, images = [], priority = false } = args;
+701447:     const message = clampAgentMessage(args.text);
+701448:     if (message.length === 0) return "Message was empty; nothing was sent.";
+701449:     if (toAgentId === fromAgentId) return "An agent can't message itself.";
+701450:     const result = await args.deliver({ fromAgentId, toAgentId, text: message });
+701451:     if (!result.delivered) return result.ack;
+701452:     const target = result.target ?? { id: toAgentId, name: `agent ${toAgentId}` };
+701453:     this.tm.productAnalytics.trackEvent("sand.agent_message.sent", {
+701454:       from_agent_id: brandedId(fromAgentId) ?? "invalid",
+701455:       to_agent_id: brandedId(toAgentId) ?? "invalid",
+701456:       is_group_target: false,
+701457:       is_priority: false
+701458:     });
+701459:     this.appendAgentOutboundEntry(
+701460:       fromAgentId,
+701461:       { id: toAgentId, name: target.name, kind: "agent" },
+701462:       message,
+701463:       Date.now(),
+701464:       { images }
+701465:     );
+701466:     const notes = [];
+701467:     if (images.length > 0) {
+701468:       notes.push(
+701469:         `Note: the attached image${images.length === 1 ? " was" : "s were"} NOT delivered \u2014 messages to agents running elsewhere are text-only for now.`
+701470:       );
+701471:     }
+701472:     if (priority) {
+701473:       notes.push(
+701474:         "Note: priority is not supported for agents running elsewhere \u2014 this was a normal send."
+701475:       );
+701476:     }
+701477:     return notes.length === 0 ? result.ack : `${result.ack} ${notes.join(" ")}`;
+701478:   }
+701479:   async receiveFromPeer(args) {
+701480:     const { from: from2, toAgentId, messageId } = args;
+701481:     const message = clampAgentMessage(args.text);
+701482:     if (message.length === 0) return "empty";
+701483:     if (this.tm.sessions.isAgentGone(toAgentId)) return "target_not_found";
+701484:     const roster = await this.tm.sessionStore.listAgents();
+701485:     const target = roster.find((agent) => agent.id === toAgentId);
+701486:     if (target == null) return "target_not_found";
+701487:     const ledgerKey = `${toAgentId}\0${messageId}`;
+701488:     if (messageId.length > 0 && this.receivedPeerMessageIds.has(ledgerKey)) return "delivered";
+701489:     if (messageId.length === 0) {
+701490:       return await this.deliverPeerMessage({
+701491:         from: from2,
+701492:         toAgentId,
+701493:         message,
+701494:         messageId,
+701495:         isGroup: target.isGroup,
+701496:         ledgerKey
+701497:       });
+701498:     }
+701499:     const inFlight = this.peerDeliveriesInFlight.get(ledgerKey);
+701500:     if (inFlight !== void 0) return await inFlight;
+701501:     const delivery = this.deliverPeerMessage({
+701502:       from: from2,
+701503:       toAgentId,
+701504:       message,
+701505:       messageId,
+701506:       isGroup: target.isGroup,
+701507:       ledgerKey
+701508:     });
+701509:     this.peerDeliveriesInFlight.set(ledgerKey, delivery);
+701510:     try {
+701511:       return await delivery;
+701512:     } finally {
+701513:       this.peerDeliveriesInFlight.delete(ledgerKey);
+701514:     }
+701515:   }
+701516:   async deliverPeerMessage(args) {
+701517:     const { from: from2, toAgentId, message, messageId, ledgerKey } = args;
+701518:     if (args.isGroup) {
+701519:       const fromAgentId = parseAgentId(from2.id);
+701520:       if (fromAgentId === null) return "not_member";
+701521:       const posted = await this.tm.groupChat.postToGroupWithStatus({
+701522:         fromAgentId,
+701523:         groupId: toAgentId,
+701524:         text: message
+701525:       });
+701526:       switch (posted.status) {
+701527:         case "posted":
+701528:           this.rememberPeerMessageId(ledgerKey, messageId);
+701529:           return "delivered";
+701530:         case "empty":
+701531:           return "empty";
+701532:         case "not_found":
+701533:           return "target_not_found";
+701534:         case "not_member":
+701535:           return "not_member";
+701536:         case "unavailable":
+701537:           return "unavailable";
+701538:       }
+701539:     }
+701540:     const delivered = await this.appendInbound(toAgentId, {
+701541:       from: from2,
+701542:       text: message,
+701543:       ...messageId.length === 0 ? {} : { messageId },
+701544:       timestampMs: Date.now()
+701545:     });
+701546:     if (!delivered) return "unavailable";
+701547:     this.rememberPeerMessageId(ledgerKey, messageId);
+701548:     return "delivered";
+701549:   }
+701550:   rememberPeerMessageId(ledgerKey, messageId) {
+701551:     if (messageId.length === 0) return;
+701552:     this.receivedPeerMessageIds.add(ledgerKey);
+701553:     if (this.receivedPeerMessageIds.size > PEER_MESSAGE_ID_LEDGER_CAP) {
+701554:       const oldest = this.receivedPeerMessageIds.values().next().value;
+701555:       if (oldest !== void 0) this.receivedPeerMessageIds.delete(oldest);
+701556:     }
+701557:   }
+701558:   async appendInbound(toAgentId, inbound) {
+701559:     var _stack = [];
+701560:     try {
+701561:       let leased;
+701562:       try {
+701563:         leased = await this.tm.sessions.leaseBackgroundSession(toAgentId);
+701564:       } catch {
+701565:         return false;
+701566:       }
+701567:       const lease = __using(_stack, leased);
+701568:       const { session } = lease;
+701569:       if (this.tm.groupChat.isGroupSession(session)) return false;
+701570:       this.appendAgentInboundEntries(session, [inbound]);
+701571:       return true;
+701572:     } catch (_2) {
+701573:       var _error = _2, _hasError = true;
+701574:     } finally {
+701575:       __callDispose(_stack, _error, _hasError);
+701576:     }
+701577:   }
+701578:   appendAgentInboundEntries(session, messages2) {
+701579:     const isActive = session.id === this.tm.sessions.activeSession?.id;
+701580:     let raisesUserActivity = false;
+701581:     for (const message of messages2) {
+701582:       const entries = isActive ? getTranscript() : session.db.getTranscriptEntries();
+701583:       const entry = {
+701584:         kind: "message",
+701585:         id: nextEntryId(entries, "user-message"),
+701586:         role: "user",
+701587:         content: message.text,
+701588:         isStreaming: false,
+701589:         timestampMs: message.timestampMs,
+701590:         fromAgent: message.from,
+701591:         ...message.images != null && message.images.length > 0 ? { images: message.images } : {}
+701592:       };
+701593:       raisesUserActivity ||= entryRaisesUserActivitySignal(entry);
+701594:       if (isActive) {
+701595:         this.tm.appendEntry(entry);
+701596:       } else {
+701597:         session.db.appendTranscriptEntry(entry);
+701598:       }
+701599:     }
+701600:     if (!isActive) {
+701601:       if (raisesUserActivity) this.tm.sessionStore.markSessionActivity(session);
+701602:       void this.tm.roster.emitAgentUpdate(session.id);
+701603:     }
+701604:   }
+701605:   async appendAgentInboundEntry(agentId, from2, text3, timestampMs) {
+701606:     var _stack = [];
+701607:     try {
+701608:       if (this.tm.sessions.isAgentGone(agentId)) return;
+701609:       const lease = __using(_stack, await this.tm.sessions.leaseBackgroundSession(agentId));
+701610:       const { session } = lease;
+701611:       const isActive = session.id === this.tm.sessions.activeSession?.id;
+701612:       const entries = isActive ? getTranscript() : session.db.getTranscriptEntries();
+701613:       const id = from2.kind === "cloud-agent" ? cloudAgentInboundEntryId(entries, from2.id, text3) : nextEntryId(entries, "user-message");
+701614:       if (entries.some((existing) => existing.id === id)) return;
+701615:       const entry = {
+701616:         kind: "message",
+701617:         id,
+701618:         role: "user",
+701619:         content: text3,
+701620:         isStreaming: false,
+701621:         timestampMs,
+701622:         fromAgent: from2
+701623:       };
+701624:       if (isActive) {
+701625:         this.tm.appendEntry(entry);
+701626:       } else {
+701627:         session.db.appendTranscriptEntry(entry);
+701628:       }
+701629:       void this.tm.roster.emitAgentUpdate(session.id);
+701630:     } catch (_2) {
+701631:       var _error = _2, _hasError = true;
+701632:     } finally {
+701633:       __callDispose(_stack, _error, _hasError);
+701634:     }
+701635:   }
+701636:   appendAgentOutboundEntry(fromAgentId, to3, text3, timestampMs, media = {}) {
+701637:     const session = this.tm.sessions.liveSessions.get(fromAgentId);
+701638:     if (session == null) return;
+701639:     const isActive = session.id === this.tm.sessions.activeSession?.id;
+701640:     const entries = isActive ? getTranscript() : session.db.getTranscriptEntries();
+701641:     const { images = [], attachments = [] } = media;
+701642:     const entry = {
+701643:       kind: "message",
+701644:       id: nextEntryId(entries, "assistant-message"),
+701645:       role: "assistant",
+701646:       content: text3,
+701647:       isStreaming: false,
+701648:       timestampMs,
+701649:       toAgent: to3,
+701650:       ...images.length > 0 ? { images } : {},
+701651:       ...attachments.length > 0 ? { attachments } : {}
+701652:     };
+701653:     if (isActive) {
+701654:       this.tm.appendEntry(entry);
+701655:     } else {
+701656:       session.db.appendTranscriptEntry(entry);
+701657:       if (entryRaisesUserActivitySignal(entry)) {
+701658:         this.tm.sessionStore.markSessionActivity(session);
+701659:       }
+701660:     }
+701661:     if (!isActive || isVisibleOutboundAgentPeerMessageEntry(entry)) {
+701662:       void this.tm.roster.emitAgentUpdate(session.id);
+701663:     }
+701664:   }
+701665: };
+701666: 

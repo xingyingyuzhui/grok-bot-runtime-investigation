@@ -1,0 +1,101 @@
+706487: // src/host/extensions/transcript/send-pipeline.ts
+706488: var SERVER_ROOM_SEND_REFUSAL = "This room runs on the server; this box can't accept messages for it.";
+706489: var SendPipeline = class {
+706490:   constructor(tm) {
+706491:     this.tm = tm;
+706492:     this.boxRequests = new BoxRequestEntries(tm);
+706493:   }
+706494:   tm;
+706495:   turnEpochs = /* @__PURE__ */ new Map();
+706496:   boxRequests;
+706497:   promptAcceptanceStatus(args) {
+706498:     return this.tm.acceptanceLedger.lookup(args);
+706499:   }
+706500:   async sendPrompt(prompt, options2) {
+706501:     const hasAttachments = (options2.attachmentPaths ?? []).some((path31) => typeof path31 === "string");
+706502:     if (prompt.trim().length === 0 && !hasAttachments) return;
+706503:     if (options2.directAddressedAcceptance !== true) {
+706504:       await this.tm.sessions.ensureActionTarget(options2.agentId);
+706505:     } else if (options2.agentId != null && this.tm.sessions.isAgentGone(options2.agentId)) {
+706506:       throw new AgentGoneError(options2.agentId);
+706507:     }
+706508:     const gatedAgentId = options2.agentId ?? this.tm.sessions.activeSession?.id;
+706509:     if (gatedAgentId != null && this.tm.sessions.isServerHostedAgent(gatedAgentId)) {
+706510:       this.tm.boxHarnessRefusals.reportServerHostedSkipped({
+706511:         conversationId: gatedAgentId,
+706512:         entry: "send",
+706513:         source: "turn"
+706514:       });
+706515:       throw this.tm.groupChat.isGroupAgentId(gatedAgentId) ? new SandServerRoomSendError(SERVER_ROOM_SEND_REFUSAL) : new SandBoxHarnessRetiredError();
+706516:     }
+706517:     this.refuseBoxTurn(gatedAgentId ?? "unknown");
+706518:   }
+706519:   refuseBoxTurn(conversationId) {
+706520:     this.tm.boxHarnessRefusals.reportBlocked({ conversationId, entry: "send", source: "turn" });
+706521:     throw new SandBoxHarnessRetiredError();
+706522:   }
+706523:   nextTurnEpoch(session) {
+706524:     const next = (this.turnEpochs.get(session.id) ?? 0) + 1;
+706525:     this.turnEpochs.set(session.id, next);
+706526:     this.tm.groupChat.cancelTemporalMemberTurns({
+706527:       roomId: session.id,
+706528:       reason: "room_turn_superseded"
+706529:     });
+706530:     return next;
+706531:   }
+706532:   currentTurnEpoch(session) {
+706533:     return this.turnEpochs.get(session.id) ?? 0;
+706534:   }
+706535:   appendSendMessageEntry(entry) {
+706536:     this.boxRequests.trackBoxRequestEntry(entry);
+706537:     this.tm.appendEntry(entry);
+706538:   }
+706539:   async resolveBoxRequestEntry(agentId, requestId2, resolution, options2) {
+706540:     return this.boxRequests.resolveBoxRequestEntry(agentId, requestId2, resolution, options2);
+706541:   }
+706542:   async resolveDevSendMessage(message) {
+706543:     if (message.type !== "attachment") return message;
+706544:     const filePath = filePathFromFileUrl(message.url);
+706545:     if (filePath == null) return message;
+706546:     const session = this.tm.sessions.activeSession;
+706547:     if (session == null) return message;
+706548:     try {
+706549:       const ingested = await this.tm.createAttachmentIngestor(session)(filePath);
+706550:       const fileName2 = (0, import_node_path162.basename)(filePath);
+706551:       const resolvedFileName = fileName2.length > 0 ? fileName2 : message.file_name;
+706552:       return {
+706553:         type: "attachment",
+706554:         url: (0, import_node_url14.pathToFileURL)(ingested).href,
+706555:         ...message.reply_to != null ? { reply_to: message.reply_to } : {},
+706556:         ...resolvedFileName != null ? { file_name: resolvedFileName } : {},
+706557:         ...message.alt != null ? { alt: message.alt } : {},
+706558:         ...message.channel != null ? { channel: message.channel } : {},
+706559:         ...message.width != null ? { width: message.width } : {},
+706560:         ...message.height != null ? { height: message.height } : {}
+706561:       };
+706562:     } catch (error42) {
+706563:       reportFallback("send_pipeline", error42);
+706564:       return message;
+706565:     }
+706566:   }
+706567:   async devAppendSendMessage(message) {
+706568:     const resolvedMessage = await this.resolveDevSendMessage(message);
+706569:     const sendId = nextEntryId(getTranscript(), "send-message");
+706570:     const entry = createSendMessageEntry(sendId, resolvedMessage, Date.now());
+706571:     this.appendSendMessageEntry(entry);
+706572:   }
+706573:   async appendConnectorCard(args) {
+706574:     await this.tm.sessions.ensureActionTarget(args.agentId);
+706575:     const reason = args.reason != null && args.reason.length > 0 ? args.reason : void 0;
+706576:     const message = {
+706577:       type: "connector",
+706578:       connector: args.connector,
+706579:       variant: args.variant,
+706580:       ...reason != null ? { reason } : {}
+706581:     };
+706582:     const sendId = nextEntryId(getTranscript(), "send-message");
+706583:     const entry = createSendMessageEntry(sendId, message, Date.now());
+706584:     this.appendSendMessageEntry(entry);
+706585:   }
+706586: };
+706587: 

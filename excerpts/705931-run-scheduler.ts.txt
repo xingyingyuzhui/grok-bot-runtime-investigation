@@ -1,0 +1,290 @@
+705931: // src/host/extensions/transcript/run-scheduler.ts
+705932: init_scheduling();
+705933: function takeNextUserTask(pending) {
+705934:   if (pending.length === 0) return void 0;
+705935:   const preferred = pending.findIndex((item) => item.source !== "group-member");
+705936:   return pending.splice(preferred === -1 ? 0 : preferred, 1)[0];
+705937: }
+705938: var SandRunScheduler = class {
+705939:   constructor(options2, clock = realClock) {
+705940:     this.options = options2;
+705941:     this.clock = clock;
+705942:   }
+705943:   options;
+705944:   clock;
+705945:   queues = /* @__PURE__ */ new Map();
+705946:   disposed = false;
+705947:   enqueue(agentId, task, options2) {
+705948:     if (this.disposed) return Promise.resolve().then(options2.onCancelled);
+705949:     const queue = this.queueFor(agentId);
+705950:     let resolve30;
+705951:     let reject2;
+705952:     const promise2 = new Promise((res, rej) => {
+705953:       resolve30 = res;
+705954:       reject2 = rej;
+705955:     });
+705956:     const item = {
+705957:       lane: options2.lane,
+705958:       source: options2.source,
+705959:       enqueuedAtMs: this.clock.now(),
+705960:       ...options2.acceptedAtMs != null ? { acceptedAtMs: options2.acceptedAtMs } : {},
+705961:       ...options2.ackToken != null ? { ackToken: options2.ackToken } : {},
+705962:       ...options2.onCancelled != null ? { onCancelled: options2.onCancelled } : {},
+705963:       task,
+705964:       resolve: resolve30,
+705965:       reject: reject2,
+705966:       promise: promise2
+705967:     };
+705968:     if (item.lane === "user") {
+705969:       queue.pendingUser.push(item);
+705970:     } else if (item.lane === "agent") {
+705971:       queue.pendingAgent.push(item);
+705972:     } else {
+705973:       queue.pendingBackground.push(item);
+705974:     }
+705975:     let pendingAhead = queue.pendingUser.length + queue.pendingAgent.length + queue.pendingBackground.length - 1;
+705976:     if (item.lane === "user") {
+705977:       pendingAhead = queue.pendingUser.length - 1;
+705978:     } else if (item.lane === "agent") {
+705979:       pendingAhead = queue.pendingUser.length + queue.pendingAgent.length - 1;
+705980:     }
+705981:     this.options.telemetry.onAccepted({
+705982:       agentId,
+705983:       lane: item.lane,
+705984:       source: item.source,
+705985:       position: (queue.active != null ? 1 : 0) + pendingAhead,
+705986:       depthUser: queue.pendingUser.length,
+705987:       depthAgent: queue.pendingAgent.length,
+705988:       depthBackground: queue.pendingBackground.length,
+705989:       hasActive: queue.active != null
+705990:     });
+705991:     this.armWatchdog(agentId, queue);
+705992:     void Promise.resolve().then(() => this.pump(agentId));
+705993:     return promise2;
+705994:   }
+705995:   async drain(agentId) {
+705996:     const queue = this.queues.get(agentId);
+705997:     if (queue == null) return;
+705998:     const snapshot = [
+705999:       ...queue.active != null ? [queue.active.settled] : [],
+706000:       ...queue.zombies,
+706001:       ...queue.pendingUser.map((item) => item.promise),
+706002:       ...queue.pendingAgent.map((item) => item.promise),
+706003:       ...queue.pendingBackground.map((item) => item.promise)
+706004:     ];
+706005:     await Promise.allSettled(snapshot);
+706006:   }
+706007:   getDiagnostics() {
+706008:     const now = this.clock.now();
+706009:     const diagnostics = [];
+706010:     for (const [agentId, queue] of this.queues) {
+706011:       const depthUser = queue.pendingUser.length;
+706012:       const depthAgent = queue.pendingAgent.length;
+706013:       const depthBackground = queue.pendingBackground.length;
+706014:       const active = queue.active;
+706015:       if (depthUser === 0 && depthAgent === 0 && depthBackground === 0 && active == null) {
+706016:         continue;
+706017:       }
+706018:       const oldestUser = queue.pendingUser[0];
+706019:       diagnostics.push({
+706020:         agentId,
+706021:         depthUser,
+706022:         depthAgent,
+706023:         depthBackground,
+706024:         depthTotal: depthUser + depthAgent + depthBackground + (active != null ? 1 : 0),
+706025:         ...oldestUser != null ? { oldestPendingUserAgeMs: now - oldestUser.enqueuedAtMs } : {},
+706026:         ...active != null ? {
+706027:           active: {
+706028:             lane: active.item.lane,
+706029:             source: active.item.source,
+706030:             runtimeMs: now - active.startedAtMs,
+706031:             phase: active.phase
+706032:           }
+706033:         } : {}
+706034:       });
+706035:     }
+706036:     return diagnostics;
+706037:   }
+706038:   getActiveLane(agentId) {
+706039:     return this.queues.get(agentId)?.active?.item.lane;
+706040:   }
+706041:   dispose() {
+706042:     this.disposed = true;
+706043:     for (const queue of this.queues.values()) {
+706044:       queue.watchdogTimer?.dispose();
+706045:       queue.graceTimer?.dispose();
+706046:       queue.watchdogTimer = void 0;
+706047:       queue.graceTimer = void 0;
+706048:       for (const item of [
+706049:         ...queue.pendingUser.splice(0),
+706050:         ...queue.pendingAgent.splice(0),
+706051:         ...queue.pendingBackground.splice(0)
+706052:       ]) {
+706053:         void Promise.resolve().then(item.onCancelled).then(item.resolve, item.reject);
+706054:       }
+706055:     }
+706056:   }
+706057:   queueFor(agentId) {
+706058:     const existing = this.queues.get(agentId);
+706059:     if (existing != null) return existing;
+706060:     const created = {
+706061:       pendingUser: [],
+706062:       pendingAgent: [],
+706063:       pendingBackground: [],
+706064:       active: null,
+706065:       generationCounter: 0,
+706066:       zombies: /* @__PURE__ */ new Set()
+706067:     };
+706068:     this.queues.set(agentId, created);
+706069:     return created;
+706070:   }
+706071:   pump(agentId) {
+706072:     if (this.disposed) return;
+706073:     const queue = this.queues.get(agentId);
+706074:     if (queue == null || queue.active != null) return;
+706075:     let next;
+706076:     if (queue.pendingUser.length > 0) {
+706077:       next = takeNextUserTask(queue.pendingUser);
+706078:     } else if (queue.pendingAgent.length > 0) {
+706079:       next = queue.pendingAgent.shift();
+706080:     } else {
+706081:       next = queue.pendingBackground.shift();
+706082:     }
+706083:     if (next == null) {
+706084:       this.disarmWatchdog(queue);
+706085:       return;
+706086:     }
+706087:     const generation = ++queue.generationCounter;
+706088:     let markSettled;
+706089:     const settled = new Promise((resolve30) => {
+706090:       markSettled = resolve30;
+706091:     });
+706092:     const active = {
+706093:       item: next,
+706094:       startedAtMs: this.clock.now(),
+706095:       generation,
+706096:       settled,
+706097:       phase: "running"
+706098:     };
+706099:     queue.active = active;
+706100:     const jumpedBackground = next.lane === "background" ? 0 : queue.pendingBackground.length;
+706101:     this.options.telemetry.onDequeued({
+706102:       agentId,
+706103:       lane: next.lane,
+706104:       source: next.source,
+706105:       queueWaitMs: active.startedAtMs - next.enqueuedAtMs,
+706106:       ...next.acceptedAtMs != null ? { acceptedToRunMs: active.startedAtMs - next.acceptedAtMs } : {},
+706107:       jumpedBackground,
+706108:       depthUser: queue.pendingUser.length,
+706109:       depthAgent: queue.pendingAgent.length,
+706110:       depthBackground: queue.pendingBackground.length
+706111:     });
+706112:     this.disarmWatchdog(queue);
+706113:     this.armWatchdog(agentId, queue);
+706114:     let taskPromise;
+706115:     try {
+706116:       taskPromise = next.task();
+706117:     } catch (error42) {
+706118:       taskPromise = Promise.reject(error42);
+706119:     }
+706120:     void taskPromise.then(
+706121:       () => {
+706122:         this.onTaskSettled(agentId, queue, active, void 0);
+706123:         markSettled();
+706124:       },
+706125:       (error42) => {
+706126:         this.onTaskSettled(agentId, queue, active, { error: error42 });
+706127:         markSettled();
+706128:       }
+706129:     );
+706130:   }
+706131:   onTaskSettled(agentId, queue, active, failure2) {
+706132:     if (failure2 === void 0) {
+706133:       active.item.resolve();
+706134:     } else {
+706135:       active.item.reject(failure2.error);
+706136:     }
+706137:     if (queue.active?.generation !== active.generation) {
+706138:       this.options.telemetry.onWatchdog({
+706139:         agentId,
+706140:         stage: "late_settle",
+706141:         activeLane: active.item.lane,
+706142:         activeSource: active.item.source,
+706143:         activeRuntimeMs: this.clock.now() - active.startedAtMs
+706144:       });
+706145:       return;
+706146:     }
+706147:     queue.active = null;
+706148:     this.disarmWatchdog(queue);
+706149:     this.pump(agentId);
+706150:   }
+706151:   waitedBehindActiveMs(queue) {
+706152:     const head = queue.pendingUser[0];
+706153:     const active = queue.active;
+706154:     if (head == null || active == null) return null;
+706155:     return this.clock.now() - Math.max(head.enqueuedAtMs, active.startedAtMs);
+706156:   }
+706157:   armWatchdog(agentId, queue) {
+706158:     if (this.disposed) return;
+706159:     if (queue.watchdogTimer != null || queue.graceTimer != null) return;
+706160:     const waitedMs = this.waitedBehindActiveMs(queue);
+706161:     if (waitedMs == null) return;
+706162:     const remaining = Math.max(0, this.options.watchdogMs - waitedMs);
+706163:     queue.watchdogTimer = this.clock.schedule(remaining, () => {
+706164:       queue.watchdogTimer = void 0;
+706165:       this.onWatchdogFired(agentId, queue);
+706166:     });
+706167:   }
+706168:   disarmWatchdog(queue) {
+706169:     queue.watchdogTimer?.dispose();
+706170:     queue.watchdogTimer = void 0;
+706171:     queue.graceTimer?.dispose();
+706172:     queue.graceTimer = void 0;
+706173:   }
+706174:   onWatchdogFired(agentId, queue) {
+706175:     if (this.disposed) return;
+706176:     const active = queue.active;
+706177:     const head = queue.pendingUser[0];
+706178:     if (active == null || head == null) return;
+706179:     const waitedBehindActiveMs = this.waitedBehindActiveMs(queue);
+706180:     if (waitedBehindActiveMs == null) return;
+706181:     if (waitedBehindActiveMs < this.options.watchdogMs) {
+706182:       this.armWatchdog(agentId, queue);
+706183:       return;
+706184:     }
+706185:     const waitingUserAgeMs = this.clock.now() - head.enqueuedAtMs;
+706186:     active.phase = "interrupted";
+706187:     this.options.telemetry.onWatchdog({
+706188:       agentId,
+706189:       stage: "trip",
+706190:       activeLane: active.item.lane,
+706191:       activeSource: active.item.source,
+706192:       activeRuntimeMs: this.clock.now() - active.startedAtMs,
+706193:       waitingUserAgeMs
+706194:     });
+706195:     queue.graceTimer = this.clock.schedule(this.options.watchdogGraceMs, () => {
+706196:       queue.graceTimer = void 0;
+706197:       this.escapeWedgedRun(agentId, queue, active);
+706198:     });
+706199:   }
+706200:   escapeWedgedRun(agentId, queue, active) {
+706201:     if (this.disposed) return;
+706202:     if (queue.active?.generation !== active.generation) return;
+706203:     const waitingHead = queue.pendingUser[0];
+706204:     this.options.telemetry.onWatchdog({
+706205:       agentId,
+706206:       stage: "escape",
+706207:       activeLane: active.item.lane,
+706208:       activeSource: active.item.source,
+706209:       activeRuntimeMs: this.clock.now() - active.startedAtMs,
+706210:       ...waitingHead != null ? { waitingUserAgeMs: this.clock.now() - waitingHead.enqueuedAtMs } : {},
+706211:       ...active.item.ackToken != null ? { ackToken: active.item.ackToken } : {}
+706212:     });
+706213:     active.item.resolve();
+706214:     queue.zombies.add(active.settled);
+706215:     void active.settled.then(() => queue.zombies.delete(active.settled));
+706216:     queue.active = null;
+706217:     this.pump(agentId);
+706218:   }
+706219: };
+706220: 

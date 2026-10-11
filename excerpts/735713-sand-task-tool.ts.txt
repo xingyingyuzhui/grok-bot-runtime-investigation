@@ -1,0 +1,68 @@
+735713: // ../packages/grok-bot-harness/src/runner/subagents/sand-task-tool.ts
+735714: var TASK_INTRO_LINE = "Start a subagent: a separate agent that works on one task and reports back to you.";
+735715: var TASK_RESULT_LINE = "- Its final message comes back to you, not the user. Trust it.";
+735716: var SAND_TASK_DESCRIPTION_LINES = [
+735717:   TASK_INTRO_LINE,
+735718:   "- It cannot see this conversation or the user. Its prompt must be self-contained: the goal, the context and exact values it needs, and what to report back.",
+735719:   "- To follow up with an agent that finished, pass its ID as resume; it keeps its context. Without resume, each call starts fresh.",
+735720:   TASK_RESULT_LINE
+735721: ];
+735722: var SAND_FORKED_EXECUTOR_TASK_DESCRIPTION_LINES = [
+735723:   TASK_INTRO_LINE,
+735724:   "- It cannot see the user. A new executor picks up from the parent conversation; any other subagent cannot see it, so its prompt must be self-contained: the goal, the context and exact values it needs, and what to report back.",
+735725:   "- To follow up with an agent that finished, pass its ID as resume; it keeps its context. Without resume, each call starts a new agent.",
+735726:   TASK_RESULT_LINE
+735727: ];
+735728: function sandTaskDescriptionBase(toolName, executorForked) {
+735729:   const lines2 = executorForked ? SAND_FORKED_EXECUTOR_TASK_DESCRIPTION_LINES : SAND_TASK_DESCRIPTION_LINES;
+735730:   return (toolName === "Subagent" ? [...lines2, "- Skills and earlier messages may call this tool Task. They mean this tool."] : lines2).join("\n");
+735731: }
+735732: function createSandTaskTool(args) {
+735733:   const { props, turn, remoteBoxResourceAccessor } = args;
+735734:   const executorForked = hasExecutorSubagent(args.subagentConfigs) && args.gates.executorForkContext();
+735735:   const taskTool = createTaskTool(
+735736:     new CombinedResourceAccessor(props.resourceAccessor, [
+735737:       resourceEntry(readExecutorResource, remoteBoxResourceAccessor.get(readExecutorResource))
+735738:     ]),
+735739:     async () => ({
+735740:       agentConfig: {
+735741:         ...turn.config,
+735742:         prependedUserMessageDedupeFloorMessageId: void 0,
+735743:         toolsGenerator: () => fencedToolSet([])
+735744:       },
+735745:       promptSession: turn.toolSession,
+735746:       summarizationHandler: turn.summarizationHandler
+735747:     }),
+735748:     args.parentModelInfo,
+735749:     props.stateHandler,
+735750:     args.subagentConfigs,
+735751:     {
+735752:       readonlyShellEnabled: false,
+735753:       allowCustomModelId: false,
+735754:       includeModelParameter: turn.executorProfileSelectionEnabled,
+735755:       modelParameterDescription: "Optional effort level for a new executor. Choose a listed level based on task difficulty, or omit it for the default. It is ignored for other subagent types and resumed executors.",
+735756:       includeExploreSubagent: false,
+735757:       subagentModels: args.subagentModels,
+735758:       catalogsInDynamicDescription: args.gates.taskSubagentRoster(),
+735759:       descriptionBase: sandTaskDescriptionBase(args.toolName, executorForked),
+735760:       toolName: args.toolName,
+735761:       forceModelId: void 0,
+735762:       subagentModelForcePolicy: SubagentModelForcePolicy.None,
+735763:       requireServerSideSubagent: false,
+735764:       compareModelCosts: () => 0,
+735765:       requiresMaxMode: void 0,
+735766:       isModelBlocked: () => false,
+735767:       isModelValid: () => true,
+735768:       useClientSideSubagent: true,
+735769:       forbidPollingOnlyInBackgroundHint: true,
+735770:       requireExplicitSubagentTypeForNewSession: !args.isSystemPromptOverridden,
+735771:       enableExploreParentModelInheritance: true,
+735772:       enableJobCompletionNotifications: true,
+735773:       geminiVideoAttachedMediaUrlProvider: args.geminiVideoAttachedMediaUrlProvider,
+735774:       enableAgentChatLinks: false,
+735775:       trustedVideoAttachmentRoots: args.remoteBoxHasDesktop ? [SAND_BOX_WORKSPACE_ROOT] : []
+735776:     }
+735777:   );
+735778:   return turn.subagentLaunchPrefetch === void 0 ? taskTool : withSubagentLaunchPrefetch(taskTool, turn.subagentLaunchPrefetch, props.stateHandler);
+735779: }
+735780: 

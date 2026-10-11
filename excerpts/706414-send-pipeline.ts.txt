@@ -1,0 +1,4 @@
+706414: // src/host/extensions/transcript/send-pipeline.ts
+706415: var import_node_path162 = require("node:path");
+706416: var import_node_url14 = require("node:url");
+706417: 

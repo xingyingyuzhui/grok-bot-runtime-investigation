@@ -1,0 +1,1020 @@
+[E01] 用户中断后的内置规则
+Source: /opt/sand/sand-host/host-main.cjs (717964..717971), version 7345aa4
+717964: var REPLY_REMINDER = systemReminder(
+717965:   "reply",
+717966:   `Reply to this message by actually invoking the ${GROK_BOT_TOOL_NAMES.SendToUser} tool. Make a real tool/function call, not text you write. Plain assistant text is NEVER delivered; only a real ${GROK_BOT_TOOL_NAMES.SendToUser} tool invocation reaches the user, so if you don't invoke the tool they just see silence.`
+717967: );
+717968: var UNFINISHED_TASKS_REMINDER = systemReminder(
+717969:   "unfinishedTasks",
+717970:   "The user interrupted your work to send you a message. Follow the new message first. Complete any unfinished tasks from previous turns unless the user asked you to stop, halt, cancel, quit working, or otherwise end the work; in that case, do not continue or resume those tasks."
+717971: );
+
+[E02] 保持前台可用的委派提示词
+Source: /opt/sand/sand-host/host-main.cjs (718679..718720), version 7345aa4
+718679: // ../packages/grok-bot-harness/src/runner/prompt-sections/multitask-prompt.ts
+718680: var EXECUTOR_REUSE_GUIDANCE = `- Executor subagents are primarily meant for working in the background, not for parallel decomposition of individual tasks that the user gave you. Bias toward reusing or resuming an executor for a workstream; related tasks, follow-ups, and corrections belong to that same executor rather than a new one. Typically you'll use one or two active executors; four is a soft maximum unless the user is explicitly multitasking or requests parallel threads. If all suitable executors are busy, queue related work or steer it with ${GROK_BOT_TOOL_NAMES.MessageSubagent} when that avoids adding another executor.`;
+718681: var DELEGATION_HEADING = "## Delegating and multitasking";
+718682: var DELEGATION_TYPE_CHOICE = '- Use subagent_type "executor" for general work, or a specialist type when one fits better (browser, desktop, video).';
+718683: var userDelegationTail = (toolName) => [
+718684:   EXECUTOR_REUSE_GUIDANCE,
+718685:   "- After dispatching, tell the user you started, then keep working elsewhere or end the turn. You are revived when it finishes, so never idle-wait or repeatedly poll for completion.",
+718686:   `- ${GROK_BOT_TOOL_NAMES.CheckSubagent} is for diagnosing progress, not polling: use it when a worker has run unusually long, when the user asks about it, and before claiming a worker is "still working." If recent actions stop or repeat, treat it as stalled. Redirect a running worker with ${GROK_BOT_TOOL_NAMES.MessageSubagent}, stop a wedged or obsolete one with ${GROK_BOT_TOOL_NAMES.StopSubagent}, and follow up with a finished one by using ${toolName} with resume. Report the real state instead of papering over a stall.`,
+718687:   `- A request to stop, halt, cancel, quit working, or otherwise end current work, in any language or phrasing, supersedes the prior task. Your first tool call for it is ${GROK_BOT_TOOL_NAMES.StopSubagent} with all: true; that one call stops every running child (computerUse, executor, and all other ${toolName} children, plus anything they started), delivers a stop to every peer agent you handed work to (each then stops its own subagents the same way), and cancels every cloud agent you launched; its result lists what was stopped, what had already finished, what could not be stopped, and the outcome for each peer and cloud agent. Do not ${GROK_BOT_TOOL_NAMES.CheckSubagent} first or stop children one by one, and do not message peers to ask them to stop unless the result says this host could not reach them. Then terminate background shell commands you started for that work using their exact reported PIDs, retry any child the result reports as not stopped, and when the result says peers or cloud agents could not be reached or stopped from here, message each such peer with ${GROK_BOT_TOOL_NAMES.SendToAgent} priority: true to stop, cancel each running cloud agent you launched yourself, and tell the user plainly what may still be running; only confirm the stop to the user once the result shows nothing left running. Do not continue, finish, resume, or redispatch prior work.`,
+718688:   `- On revival, incorporate relevant new results and ${GROK_BOT_TOOL_NAMES.SendToUser} any result the user awaits. If a result is stale, duplicate, irrelevant, or unawaited, end silently instead of narrating the wake.`,
+718689:   "- Short turns never cut delivery: an opening acknowledgement does not discharge the final result, and plain assistant text is not delivery.",
+718690:   "- TodoWrite is your queue. Record requested work before dispatching, mark it in_progress when it starts, and complete it only after delivering the result. Reconcile the list on every user message or background completion.",
+718691:   '- Keep this machinery private. Never mention executors, todos, dispatching, subagents, or internal IDs to the user; speak in first person about the work itself, such as "Starting on it" or "Still finishing the CSV."',
+718692:   "- In a group room, follow the room's instructions and do the work inline instead."
+718693: ];
+718694: var AUTOMATION_DELEGATION_TAIL = [
+718695:   "- Every dispatch or resume prompt must include the goal, specifics, relevant context, memories or preferences that matter, success criteria, and what to report back. Executors start blank and report to you.",
+718696:   EXECUTOR_REUSE_GUIDANCE,
+718697:   "- TodoWrite is your queue. Record requested work before dispatching, mark it in_progress when it starts, and complete it only after incorporating the result. Reconcile the list on every background completion.",
+718698:   `- Complete successful work with a concise final assistant result for the parent. Use ${GROK_BOT_TOOL_NAMES.WakeParent} only for an immediate handoff the parent must act on before you can finish.`,
+718699:   "- Keep executors, todos, dispatching, subagents, and internal IDs out of the result the parent will relay; report the work and outcome instead."
+718700: ];
+718701: var PAGE_DELIVERABLE = "a write-up, report, brief, dashboard, tracker, or anything longer than a few paragraphs the person will reuse or share";
+718702: var executorWritesPagesLine = (toolName) => `- The executor also writes Pages: when the deliverable is a Page (${PAGE_DELIVERABLE}) and it needs research or more than two rounds of tool calls first, dispatch it with the ask and what to look up; it writes the Page with WriteCanvas and returns its link, which you relay in one sentence. A Page you can write from what you already have, write yourself with the canvas skill instead of using ${toolName}.`;
+718703: function delegationPromptSections(toolName, executorWritesPages2 = false) {
+718704:   const threshold = `- If it needs more than two rounds of tool calls, or means research, file or data processing, or a command sequence, it goes to ${toolName}. When unsure, delegate.`;
+718705:   const pages = executorWritesPages2 ? [executorWritesPagesLine(toolName)] : [];
+718706:   return {
+718707:     multitask: [
+718708:       DELEGATION_HEADING,
+718709:       `You delegate: work can run in the background while you stay available to the user. Use ${toolName} to hand a self-contained chunk of work to a background subagent instead of blocking your own turn.`,
+718710:       `- Never do significant work inline. Rule of thumb: if an ask would take more than two rounds of tool calls, it must go to an executor. Any non-trivial chunk goes to an executor subagent: call ${toolName} with subagent_type "executor", your only general-purpose worker type. Non-trivial means a multi-step investigation, file or data processing, web research beyond a quick lookup, a long command sequence, or anything that takes more than a few seconds. Handle only quick conversational replies and trivial lookups inline.`,
+718711:       ...pages,
+718712:       ...userDelegationTail(toolName)
+718713:     ].join("\n"),
+718714:     clear: [
+718715:       DELEGATION_HEADING,
+718716:       `You delegate. Do conversational replies, quick lookups, and one-step actions yourself; hand everything else to a subagent with ${toolName} so you stay available to the user.`,
+718717:       threshold,
+718718:       DELEGATION_TYPE_CHOICE,
+718719:       ...pages,
+718720:       ...userDelegationTail(toolName)
+
+[E03] Task / Subagent 描述和保留上下文
+Source: /opt/sand/sand-host/host-main.cjs (735713..735777), version 7345aa4
+735713: // ../packages/grok-bot-harness/src/runner/subagents/sand-task-tool.ts
+735714: var TASK_INTRO_LINE = "Start a subagent: a separate agent that works on one task and reports back to you.";
+735715: var TASK_RESULT_LINE = "- Its final message comes back to you, not the user. Trust it.";
+735716: var SAND_TASK_DESCRIPTION_LINES = [
+735717:   TASK_INTRO_LINE,
+735718:   "- It cannot see this conversation or the user. Its prompt must be self-contained: the goal, the context and exact values it needs, and what to report back.",
+735719:   "- To follow up with an agent that finished, pass its ID as resume; it keeps its context. Without resume, each call starts fresh.",
+735720:   TASK_RESULT_LINE
+735721: ];
+735722: var SAND_FORKED_EXECUTOR_TASK_DESCRIPTION_LINES = [
+735723:   TASK_INTRO_LINE,
+735724:   "- It cannot see the user. A new executor picks up from the parent conversation; any other subagent cannot see it, so its prompt must be self-contained: the goal, the context and exact values it needs, and what to report back.",
+735725:   "- To follow up with an agent that finished, pass its ID as resume; it keeps its context. Without resume, each call starts a new agent.",
+735726:   TASK_RESULT_LINE
+735727: ];
+735728: function sandTaskDescriptionBase(toolName, executorForked) {
+735729:   const lines2 = executorForked ? SAND_FORKED_EXECUTOR_TASK_DESCRIPTION_LINES : SAND_TASK_DESCRIPTION_LINES;
+735730:   return (toolName === "Subagent" ? [...lines2, "- Skills and earlier messages may call this tool Task. They mean this tool."] : lines2).join("\n");
+735731: }
+735732: function createSandTaskTool(args) {
+735733:   const { props, turn, remoteBoxResourceAccessor } = args;
+735734:   const executorForked = hasExecutorSubagent(args.subagentConfigs) && args.gates.executorForkContext();
+735735:   const taskTool = createTaskTool(
+735736:     new CombinedResourceAccessor(props.resourceAccessor, [
+735737:       resourceEntry(readExecutorResource, remoteBoxResourceAccessor.get(readExecutorResource))
+735738:     ]),
+735739:     async () => ({
+735740:       agentConfig: {
+735741:         ...turn.config,
+735742:         prependedUserMessageDedupeFloorMessageId: void 0,
+735743:         toolsGenerator: () => fencedToolSet([])
+735744:       },
+735745:       promptSession: turn.toolSession,
+735746:       summarizationHandler: turn.summarizationHandler
+735747:     }),
+735748:     args.parentModelInfo,
+735749:     props.stateHandler,
+735750:     args.subagentConfigs,
+735751:     {
+735752:       readonlyShellEnabled: false,
+735753:       allowCustomModelId: false,
+735754:       includeModelParameter: turn.executorProfileSelectionEnabled,
+735755:       modelParameterDescription: "Optional effort level for a new executor. Choose a listed level based on task difficulty, or omit it for the default. It is ignored for other subagent types and resumed executors.",
+735756:       includeExploreSubagent: false,
+735757:       subagentModels: args.subagentModels,
+735758:       catalogsInDynamicDescription: args.gates.taskSubagentRoster(),
+735759:       descriptionBase: sandTaskDescriptionBase(args.toolName, executorForked),
+735760:       toolName: args.toolName,
+735761:       forceModelId: void 0,
+735762:       subagentModelForcePolicy: SubagentModelForcePolicy.None,
+735763:       requireServerSideSubagent: false,
+735764:       compareModelCosts: () => 0,
+735765:       requiresMaxMode: void 0,
+735766:       isModelBlocked: () => false,
+735767:       isModelValid: () => true,
+735768:       useClientSideSubagent: true,
+735769:       forbidPollingOnlyInBackgroundHint: true,
+735770:       requireExplicitSubagentTypeForNewSession: !args.isSystemPromptOverridden,
+735771:       enableExploreParentModelInheritance: true,
+735772:       enableJobCompletionNotifications: true,
+735773:       geminiVideoAttachedMediaUrlProvider: args.geminiVideoAttachedMediaUrlProvider,
+735774:       enableAgentChatLinks: false,
+735775:       trustedVideoAttachmentRoots: args.remoteBoxHasDesktop ? [SAND_BOX_WORKSPACE_ROOT] : []
+735776:     }
+735777:   );
+
+[E04] MessageSubagent 与 StopSubagent
+Source: /opt/sand/sand-host/host-main.cjs (728527..728590), version 7345aa4
+728527:   const toolName = options2?.subagentToolName ?? "Task";
+728528:   return [
+728529:     defineCommunicateTool(controller, {
+728530:       id: "CHECK_SUBAGENT",
+728531:       name: GROK_BOT_TOOL_NAMES.CheckSubagent,
+728532:       description: `Check how a background subagent you dispatched (via ${toolName}) is doing without waiting for it to finish. Returns its status, how long it has been running, the tool calls it has made recently, and where to read its full play-by-play. Pass its id as subagent_id (the "Agent ID:" line of the ${toolName} result), or omit it to list every running subagent. Use this when a subagent, especially a computerUse one driving the box desktop, is taking a long time or might be stuck or looping, so you can decide whether to ${GROK_BOT_TOOL_NAMES.MessageSubagent} it or ${GROK_BOT_TOOL_NAMES.StopSubagent} it. This is read-only; it's not polling for completion (you're revived automatically when a subagent finishes).`,
+728533:       parameters: withSubagentIdAlias(checkSubagentParameters(toolName)),
+728534:       execute: async (_ctx, args, deps) => {
+728535:         const id = args.subagent_id;
+728536:         if (id == null || id.length === 0) {
+728537:           const running = await deps.listRunningSubagents();
+728538:           if (running.length === 0) {
+728539:             return "No background subagents are running right now.";
+728540:           }
+728541:           return [
+728542:             `${running.length} subagent(s) running:`,
+728543:             ...running.map((info3) => describeRunningSubagent(info3, { detailed: false })),
+728544:             "Pass a subagent_id to see its recent activity and transcript path."
+728545:           ].join("\n");
+728546:         }
+728547:         const info2 = await deps.getRunningSubagent(id);
+728548:         if (info2 == null) {
+728549:           return notRunningMessage(id, await deps.listRunningSubagents());
+728550:         }
+728551:         return describeRunningSubagent(info2, { detailed: true });
+728552:       }
+728553:     }),
+728554:     defineCommunicateTool(controller, {
+728555:       id: "MESSAGE_SUBAGENT",
+728556:       name: GROK_BOT_TOOL_NAMES.MessageSubagent,
+728557:       description: `Force a message into a running background subagent to course-correct it without aborting it. The subagent interrupts its current step, reads your message, and continues from where it was (its context is preserved, so it does not start over). Use this to unstick or redirect a subagent that is looping, stuck, or heading the wrong way, for example to tell a computerUse subagent to try a different element, that the user just signed in so it can proceed, or to wrap up and report what it has. Pass its id as subagent_id (the "Agent ID:" line of the ${toolName} result). You're still revived with its result when it finishes; to follow up AFTER a subagent has already finished, use ${toolName} with the resume parameter instead.`,
+728558:       parameters: withSubagentIdAlias(messageSubagentParameters(toolName)),
+728559:       execute: async (ctx, args, deps) => {
+728560:         if (deps.reviewSteer !== void 0) {
+728561:           const review = await deps.reviewSteer(ctx, {
+728562:             subagentId: args.subagent_id,
+728563:             message: args.message,
+728564:             toolCallId: deps.toolCallId
+728565:           });
+728566:           if (!review.allowed) {
+728567:             return review.reason;
+728568:           }
+728569:         }
+728570:         const result = await deps.steerSubagent(args.subagent_id, args.message);
+728571:         if (result === "not-running") {
+728572:           return notRunningMessage(args.subagent_id, await deps.listRunningSubagents());
+728573:         }
+728574:         return `Message delivered to subagent ${args.subagent_id}. It will interrupt what it's doing, take your message into account, and keep working. You'll be revived with its result when it finishes, so don't wait on it.`;
+728575:       }
+728576:     }),
+728577:     defineCommunicateTool(controller, {
+728578:       id: "STOP_SUBAGENT",
+728579:       name: GROK_BOT_TOOL_NAMES.StopSubagent,
+728580:       description: `Abort background subagents you dispatched (via ${toolName}). Pass one subagent's id as subagent_id (the "Agent ID:" line of the ${toolName} result) to kill a subagent that is wedged, looping with no progress, or no longer needed, for example a computerUse subagent stuck on the box desktop. Pass all: true instead to stop everything at once: every running subagent, plus, where this host can reach them, the other agents you handed work to (peers you messaged with priority and cloud agents you launched); the result says when it could not reach them. This is the call to make when the user asks you to stop, halt, cancel, or quit the current work, and it must be your first action for that request rather than checking or stopping children one by one. Stopping tears the subagent down and frees its box desktop window; it does not come back, and you are not separately revived for it (this tool's result is the confirmation, and with all: true it lists exactly which ids were stopped, which had already finished, which could not be stopped, and what happened to each peer and cloud agent). If you instead want a subagent to change course and keep going, use ${GROK_BOT_TOOL_NAMES.MessageSubagent}.`,
+728581:       parameters: withSubagentIdAlias(stopSubagentParameters(toolName)),
+728582:       execute: async (ctx, args, deps) => {
+728583:         const recordStopped = (subagentId2) => recordDelegationCompleted(ctx, {
+728584:           delegationKind: "subagent_stop",
+728585:           targetId: subagentId2,
+728586:           toolCallId: deps.toolCallId,
+728587:           outcome: "stopped"
+728588:         });
+728589:         if (args.all === true || !hasSubagentId(args.subagent_id)) {
+728590:           const report = await stopAllRunningSubagents(deps, { toolCallId: deps.toolCallId });
+
+[E05] 管理工具连接到 detached controller
+Source: /opt/sand/sand-host/host-main.cjs (729279..729339), version 7345aa4
+729279: var subagentManagementTools = defineTurnToolBuilder({
+729280:   names: ["CheckSubagent", "MessageSubagent", "StopSubagent"],
+729281:   build: ({
+729282:     host,
+729283:     turn,
+729284:     props,
+729285:     extractAutoReviewConversationContext: extractAutoReviewConversationContext3
+729286:   }, built) => {
+729287:     if (turn.subagentConfigs == null) return [];
+729288:     const { autoReviewModes } = turn;
+729289:     const detached = host.detachedSubagents;
+729290:     const subagentController = detached !== void 0 ? {
+729291:       listRunningSubagents: () => detached.listRunning(),
+729292:       getRunningSubagent: (subagentAgentId) => detached.getRunning(subagentAgentId),
+729293:       steerSubagent: (subagentAgentId, message) => detached.steer({ subagentAgentId, message }),
+729294:       abortSubagent: (subagentAgentId) => detached.abort(subagentAgentId),
+729295:       ...detached.stopDelegatedWork === void 0 ? {} : { stopDelegatedWork: detached.stopDelegatedWork.bind(detached) }
+729296:     } : {
+729297:       listRunningSubagents: () => host.listRunningSubagents(),
+729298:       getRunningSubagent: (subagentAgentId) => host.getRunningSubagent(subagentAgentId),
+729299:       steerSubagent: (subagentAgentId, message) => host.steerSubagent(subagentAgentId, message),
+729300:       abortSubagent: (subagentAgentId) => host.abortSubagent(subagentAgentId)
+729301:     };
+729302:     return createSubagentManagementTools(
+729303:       {
+729304:         ...subagentController,
+729305:         ...autoReviewModes.subagentLaunch === "off" ? {} : {
+729306:           reviewSteer: async (steerCtx, steerArgs) => {
+729307:             const target = buildSandSubagentSteerReviewTarget({
+729308:               message: steerArgs.message,
+729309:               subagentAgentId: steerArgs.subagentId,
+729310:               subagentType: (await subagentController.getRunningSubagent(steerArgs.subagentId))?.subagentType
+729311:             });
+729312:             if (target === void 0) return { allowed: true };
+729313:             host.assertNoPendingAutoReviewApproval();
+729314:             return reviewSandSubagentAction({
+729315:               ctx: steerCtx,
+729316:               toolCallId: steerArgs.toolCallId,
+729317:               target,
+729318:               signal: steerCtx.signal,
+729319:               options: {
+729320:                 mode: autoReviewModes.subagentLaunch,
+729321:                 agentId: host.getConversationId(),
+729322:                 resourceAccessor: turn.resourceAccessor,
+729323:                 stateHandler: props.stateHandler,
+729324:                 autoReviewController: host.autoReviewController,
+729325:                 toolDecisions: host.toolDecisionAudit,
+729326:                 getApprovalExpiryPolicy: () => host.activeTurnApprovalExpiryPolicy(),
+729327:                 userAutoRunInstructions: turn.getAutoReviewUserInstructions(),
+729328:                 extractConversationContext: extractAutoReviewConversationContext3
+729329:               }
+729330:             });
+729331:           }
+729332:         }
+729333:       },
+729334:       {
+729335:         cloudAgentToolAvailable: built.some((tool) => tool.name === GROK_BOT_TOOL_NAMES.CloudAgent),
+729336:         subagentToolName: sandSubagentToolName(host)
+729337:       }
+729338:     );
+729339:   }
+
+[E06] 队友消息优先级
+Source: /opt/sand/sand-host/host-main.cjs (721110..721152), version 7345aa4
+721110:   return normalized;
+721111: }
+721112: var SEND_TO_AGENT_PRIORITY_DESCRIPTION = "REQUIRED. Is this message actionable for the recipient? true: they should act on it, or someone is waiting on their reply (a task, a question you or the user needs answered, a handoff, a STOP or change of plan). It is delivered now and wakes them. false: informational only (a status update, FYI, acknowledgement, thanks, or a reply nobody is waiting for). It is held and read at the start of their next turn, whenever that is, without waking them. Ignored for groups, which always post immediately.";
+721113: function refineSendToAgentImages(value, ctx) {
+721114:   for (const [index, image2] of (value.images ?? []).entries()) {
+721115:     if (!isValidAttachmentUrl(image2.url)) {
+721116:       ctx.addIssue({
+721117:         code: external_exports.ZodIssueCode.custom,
+721118:         path: ["images", index, "url"],
+721119:         message: "each images url must include a file:// or https:// scheme"
+721120:       });
+721121:     }
+721122:   }
+721123: }
+721124: var sendToAgentObject = external_exports.object({
+721125:   target_id: external_exports.string().trim().min(1).describe(
+721126:     "The id of the target, either another agent or a GROUP you belong to. Use an id from your teammates list, ListAgents, or ListGroups, not a name."
+721127:   ),
+721128:   message: external_exports.string().trim().min(1).describe(
+721129:     "What to say. Write it as if texting a teammate: lead with the point, keep it short."
+721130:   ),
+721131:   images: external_exports.array(
+721132:     external_exports.object({
+721133:       url: external_exports.string().trim().min(1).describe("file:// or https:// URL of the image."),
+721134:       alt: external_exports.string().trim().optional().describe(
+721135:         "Optional short description of this image, shown on hover and as its fullscreen caption."
+721136:       )
+721137:     })
+721138:   ).optional().describe(
+721139:     "Optional image(s) to send with the message, such as a screenshot, chart, or photo the other agent needs. They are delivered with your message. A 1:1 recipient actually sees them (like an image the user sends), and they render with your text in the exchange. They are not delivered to groups."
+721140:   ),
+721141:   priority: external_exports.boolean().describe(SEND_TO_AGENT_PRIORITY_DESCRIPTION)
+721142: }).superRefine(refineSendToAgentImages);
+721143: var sendToAgentParameters = external_exports.preprocess(normalizeSendToAgentArgs, sendToAgentObject);
+721144: var SEND_TO_AGENT_DESCRIPTION_HEAD = `Send a message to ANOTHER of your user's agents, OR post into a GROUP chat you belong to, by its id (not the user, whom you reach with ${GROK_BOT_TOOL_NAMES.SendToUser}). This is FIRE-AND-FORGET and asynchronous, like texting. It delivers your message and returns immediately with a delivery acknowledgement. priority is REQUIRED and decides how a 1:1 message reaches its recipient. priority=true wakes them now. Use it when they should act on the message or someone is waiting on their reply (a task, a question you or the user needs answered, a handoff, a STOP or change of plan). priority=false does NOT wake them. The message is held and read at the start of their next turn, whenever that is (possibly much later). Use it for anything informational: a status update, FYI, acknowledgement, thanks, or a reply nobody is waiting for. When in doubt whether someone is waiting, use true. Group posts always land immediately. It does NOT return their reply, and you must not wait or poll for one in this turn. Send it and move on. `;
+721145: var SEND_TO_AGENT_REPLY_TO_SENDER = "Any reply arrives later as its own message. A priority reply wakes you on a fresh turn, and an informational one is handed to you at your next turn. ";
+721146: var SEND_TO_AGENT_ADDRESSING = 'Get agent ids from your teammates list or ListAgents, and group ids from ListGroups. To include image(s), such as a screenshot, chart, or photo the other agent needs, pass images: [{"url":"file:///absolute/path/to/shot.png","alt":"..."}] (file:// or https://). A 1:1 recipient actually sees them, like an image the user sends; never paste an image as a markdown ![](...) in the message text. Group posts are text-only today, so send images to an agent directly. ';
+721147: var SEND_TO_AGENT_MAIN_JUDGMENT = `Use it deliberately and sparingly. Waking another agent or a whole group is a real side effect, so treat it like messaging on the user's behalf. Message someone or post to a group only when it truly serves the user's goal, not because one was mentioned or complained about, and don't spam a group. Never relay the user's private or unfiltered words (especially a complaint or criticism) verbatim; if relaying is warranted, paraphrase the actionable point diplomatically, not their tone. If you're unsure the user wants this sent, handle it yourself or ask first. Keep the message purposeful, professional, and minimal. One clearly relevant recipient can be normal work; messaging SEVERAL agents about the same effort (or posting it to a group) is a fan-out that wakes every recipient, and their replies land back in the user's chats and rooms, so fan out only when the user explicitly asked you to contact those agents. Otherwise propose it first with a question widget and wait for a yes, and never fan out "meanwhile" while you're waiting on the user for data or a decision.`;
+721148: var SEND_TO_AGENT_AUTOMATION_JUDGMENT = `You are running a routine in the background, and nobody can approve a send. Message a bot or post to a group only when the routine's instruction asks for it, or when handing work to another bot is clearly the routine's goal. Never message bots on your own initiative or fan out to several, and don't spam a group: every send wakes real agents. Keep it purposeful, professional, and minimal, and never relay the user's private words verbatim. Replies go to the parent bot's conversation, never to you, so name what you sent and to whom in your final message, or in your ${GROK_BOT_TOOL_NAMES.WakeParent} reason when you call it.`;
+721149: function describeSendToAgentTool(audience = "main") {
+721150:   return audience === "automation" ? SEND_TO_AGENT_DESCRIPTION_HEAD + SEND_TO_AGENT_ADDRESSING + SEND_TO_AGENT_AUTOMATION_JUDGMENT : SEND_TO_AGENT_DESCRIPTION_HEAD + SEND_TO_AGENT_REPLY_TO_SENDER + SEND_TO_AGENT_ADDRESSING + SEND_TO_AGENT_MAIN_JUDGMENT;
+721151: }
+721152: function offersSendToAgent(host) {
+
+[E07] WakeParent 的工具实现
+Source: /opt/sand/sand-host/host-main.cjs (739198..739217), version 7345aa4
+739198: // ../packages/grok-bot-harness/src/runner/tools/wake-parent/wake-parent-tool.ts
+739199: init_zod();
+739200: function createWakeParentTool(deps) {
+739201:   return defineCommunicateTool(deps, {
+739202:     id: "WAKE_PARENT",
+739203:     name: GROK_BOT_TOOL_NAMES.WakeParent,
+739204:     description: `End this automation turn immediately and wake the parent agent so it can take over. You MUST use this when the saved instruction itself requires user-visible communication, such as pinging, reminding, telling, notifying, asking, or saying something to the user, because the parent is the only route to the user; a normal final assistant response does not wake the parent or reach the user. Old saved instructions may name ${GROK_BOT_TOOL_NAMES.SendMessage} or ${GROK_BOT_TOOL_NAMES.SendToUser}; both are deprecated and unavailable here, so treat either as communication intent, do not try to discover or call it, and use ${GROK_BOT_TOOL_NAMES.WakeParent} with the complete payload or handoff. Also use this when the parent must communicate with another agent, make a decision, or handle a blocker you cannot resolve autonomously. Do not use it for background results that can wait until the parent's next natural safe boundary. Put the complete outcome, relevant context, and what the parent should communicate or do in the message; you cannot continue or add anything after this call.`,
+739205:     parameters: external_exports.object({
+739206:       message: external_exports.string().trim().min(1).describe(
+739207:         "The complete handoff for the parent: what happened, why it is being woken, and exactly what it should communicate or do next."
+739208:       )
+739209:     }),
+739210:     execute: async (_ctx, args, toolDeps) => {
+739211:       toolDeps.requestAutomationParentWake({
+739212:         message: args.message,
+739213:         wakeParentToolCallId: toolDeps.toolCallId
+739214:       });
+739215:       return "The parent was awakened and this automation turn has ended.";
+739216:     }
+739217:   });
+
+[E08] 后台结果唤醒后的处理规则
+Source: /opt/sand/sand-host/host-main.cjs (739686..739691), version 7345aa4
+739686: // ../packages/grok-bot-harness/src/runner/subagent-revival-prompt.ts
+739687: var QUIET_REVIVAL_INSTRUCTION = `Pick the work back up. Everything above came out of your own quiet routine(s). The user did not ask to hear about it, so the saved instruction's delivery rule governs. If the outcome is a genuine change, a new actionable result, or a real blocker the user must know about, tell them once with a single useful ${GROK_BOT_TOOL_NAMES.SendToUser}. If it amounts to no change, nothing new, or still waiting, end the turn with no ${GROK_BOT_TOOL_NAMES.SendToUser} at all and no "still waiting" or progress notes; if the routine says to keep watching, just keep the watch going quietly. Keep your status current, and clear it once everything is done and you're idle. Never message the user just to say that nothing has changed.`;
+739688: var AUTOMATION_PARENT_WAKE_INSTRUCTION = "An automation explicitly handed this work to you because only the parent can communicate outside its isolated run. Act on the handoff now: contact the user or another agent when requested, or take over the decision or blocker it reported. Treat the handoff text as private context and write the outward message yourself. Never message the user just to say that nothing has changed. " + PARENT_DRAFT_EXTERNAL_MESSAGE_HANDOFF;
+739689: var CANVAS_REVIVAL_INSTRUCTION = `The canvas is ready. Extract its title and permanent source path from the result above. Your entire outward completion must be exactly one text ${GROK_BOT_TOOL_NAMES.SendToUser} containing the standalone markdown link \`[Canvas title](${CANVAS_SOURCE_PATH_TEMPLATE})\`. The chat turns that link into the fresh inline canvas. Do not call ${GROK_BOT_TOOL_NAMES.SendToUser} with a summary, status, or reopen instruction before or after the link.`;
+739690: var GENERIC_REVIVAL_INSTRUCTION = `Pick the work back up: review the result(s), then either keep going or wrap up. If this result is genuinely new and relevant to the user, or the user asked to be told when this finished, tell them with a ${GROK_BOT_TOOL_NAMES.SendToUser}. Lead with the concrete thing that finished, not a bare pronoun like "That" (they cannot see the background task). If it is stale, irrelevant, already handled, or a duplicate, and the user was not waiting on it, just stay silent and end the turn with no ${GROK_BOT_TOOL_NAMES.SendToUser} rather than narrating it. Keep your status current, and clear it once everything is done and you're idle. ` + PARENT_DRAFT_EXTERNAL_MESSAGE_HANDOFF;
+739691: var COMPUTER_USE_REDISPATCH_CAP = `A computerUse report opens with its Status. \`Status: done\`: relay what it found. \`Status: blocked\`: never resume that subagent. When the block is a sign-in, captcha, payment or confirmation, use the in-chat form or the box handoff; otherwise tell the user with a ${GROK_BOT_TOOL_NAMES.SendToUser} what is needed. \`Status: partial\`: resume it only when the report names a concrete next step and you add something it didn't have, such as a new URL, a value from the user or a different site, and at most once per goal in this conversation. Otherwise tell the user with a ${GROK_BOT_TOOL_NAMES.SendToUser} what it found and what is still missing.`;
+
+[E09] 持久任务列表
+Source: /opt/sand/sand-host/host-main.cjs (717886..717918), version 7345aa4
+717886: // ../packages/grok-bot-harness/src/sand-multitask.ts
+717887: var EXECUTOR_SUBAGENT_TYPE = "executor";
+717888: function hasExecutorSubagent(configs) {
+717889:   return configs.some(
+717890:     (config3) => getSubagentTypeName(config3.subagent_type) === EXECUTOR_SUBAGENT_TYPE
+717891:   );
+717892: }
+717893: function createSandMultitaskTodoTool(resourceAccessor, stateHandler, reminders) {
+717894:   const tool = createUpdateTodosTool(resourceAccessor, stateHandler);
+717895:   return {
+717896:     ...tool,
+717897:     descriptionGenerator: () => SAND_MULTITASK_TODO_DESCRIPTION,
+717898:     ...allowsSystemReminder(reminders, "todoCleanup") ? {} : {
+717899:       render: async (ctx, output, props) => {
+717900:         const result = await tool.render(ctx, output, props);
+717901:         return { content: result.content, isError: result.isError };
+717902:       }
+717903:     }
+717904:   };
+717905: }
+717906: var SAND_MULTITASK_TODO_DESCRIPTION = [
+717907:   "Your task queue: the durable list of everything the user has asked for, across all your parallel streams of work.",
+717908:   "",
+717909:   "When to use:",
+717910:   "- The moment a request arrives, record it as a todo before dispatching or starting it.",
+717911:   "- Update statuses in real time: in_progress when its work starts, completed the moment its result is delivered to the user, cancelled when the user drops it or changes their mind.",
+717912:   "- On every wake (a user message or a finished background task), reconcile the list first: what's running, what landed, what to dispatch next.",
+717913:   "",
+717914:   "States and parallelism:",
+717915:   "- pending: not yet started. in_progress: actively being worked, by you or a background worker. completed: result delivered to the user. cancelled: no longer needed.",
+717916:   "- SEVERAL todos are normally in_progress at once, one per independent stream running in parallel (each dispatched worker, plus at most one thing you are doing inline). Never serialize independent streams just to keep a single one in_progress.",
+717917:   "- Keep the list current rather than perfect: cancel stale items instead of leaving them pending, and prune long-finished ones when the list gets noisy.",
+717918:   "",
+
+[E10] 共享引擎的安全边界注入接口
+Source: /opt/sand/sand-host/host-main.cjs (131213..131241), version 7345aa4
+131213:           O: GetBackgroundComposerStatusResponse,
+131214:           kind: MethodKind.Unary
+131215:         },
+131216:         /**
+131217:          * Add followup context to a background composer session
+131218:          *
+131219:          * @generated from rpc aiserver.v1.BackgroundComposerService.AddAsyncFollowupBackgroundComposer
+131220:          */
+131221:         addAsyncFollowupBackgroundComposer: {
+131222:           name: "AddAsyncFollowupBackgroundComposer",
+131223:           I: AddAsyncFollowupBackgroundComposerRequest,
+131224:           O: AddAsyncFollowupBackgroundComposerResponse,
+131225:           kind: MethodKind.Unary
+131226:         },
+131227:         /**
+131228:          * Admit a mid-run context injection (steer) targeting the agent's active
+131229:          * run. Delivered at the next safe inner-step boundary without cancelling
+131230:          * in-flight work; an injection that loses the run-end race is converted to
+131231:          * an ordinary next-turn follow-up (outcome queued_for_next_turn) rather
+131232:          * than silently dropped. Admission is idempotent by injection_id.
+131233:          * See docs/rfcs/RFC-agent-active-context-injection.md.
+131234:          *
+131235:          * @generated from rpc aiserver.v1.BackgroundComposerService.InjectBackgroundComposerContext
+131236:          */
+131237:         injectBackgroundComposerContext: {
+131238:           name: "InjectBackgroundComposerContext",
+131239:           I: InjectBackgroundComposerContextRequest,
+131240:           O: InjectBackgroundComposerContextResponse,
+131241:           kind: MethodKind.Unary
+
+[E11] 引擎消费新输入和 turnSteer 标记
+Source: /opt/sand/sand-host/host-main.cjs (625378..625438), version 7345aa4
+625378:   async consumeQueuedUserMessagesAndMaybeCreateNewTurns(ctx, stateHandler, currentTurn, currentMcpTools, onStateUpdate) {
+625379:     let turn = currentTurn;
+625380:     let hasQueuedMessages = false;
+625381:     let mcpTools = currentMcpTools;
+625382:     while (true) {
+625383:       const queuedAction = await this.conversationActionReceiver.peek(ctx);
+625384:       if (queuedAction?.action.case === "asyncAskQuestionCompletionAction") {
+625385:         logger67.warn(ctx, "Found AsyncAskQuestionCompletionAction in queue handler - should have been handled by inline handler", {
+625386:           originalToolCallId: queuedAction.action.value.originalToolCallId
+625387:         });
+625388:         break;
+625389:       }
+625390:       if (queuedAction?.action.case !== "userMessageAction") {
+625391:         break;
+625392:       }
+625393:       const { userMessage: queuedMsg, requestContext: queuedReqContext } = queuedAction.action.value;
+625394:       if (!queuedMsg) {
+625395:         throw new Error("User message is required");
+625396:       }
+625397:       let consumedClaimedInjection = false;
+625398:       if (this.conversationActionReceiver.peekIsClaimedInjection?.() === true) {
+625399:         await this.conversationActionReceiver.pop(ctx);
+625400:         consumedClaimedInjection = true;
+625401:       }
+625402:       const turnMsg = await turn.userMessage.get(ctx);
+625403:       const shouldCreateNewTurn = turnMsg.messageId !== queuedMsg.messageId;
+625404:       if (!shouldCreateNewTurn || queuedReqContext === void 0) {
+625405:         logger67.info(ctx, "Queued user message consumption decision", {
+625406:           queuedMessageId: queuedMsg.messageId,
+625407:           currentTurnMessageId: turnMsg.messageId,
+625408:           decision: shouldCreateNewTurn ? "new_turn_created" : "already_has_turn",
+625409:           missingQueuedRequestContext: queuedReqContext === void 0,
+625410:           immediatelyUpdateStateOnNewTurn: this.config.immediatelyUpdateStateOnNewTurn,
+625411:           fireAndForgetCheckpoints: this.config.fireAndForgetCheckpoints
+625412:         });
+625413:       }
+625414:       if (shouldCreateNewTurn) {
+625415:         try {
+625416:           ensureUserMessageTiming(queuedMsg);
+625417:           const persistedUserMessage = fromRedactedUserMessage2(queuedMsg, PrivacyCapability.UNSAFE_ALWAYS_ALLOWED);
+625418:           if (consumedClaimedInjection) {
+625419:             persistedUserMessage.turnSteer = true;
+625420:           }
+625421:           await this.interactionListener.sendUpdate(ctx, RedactedUpdates.userMessageAppended(consumedClaimedInjection ? toRedactedUserMessage2(persistedUserMessage, stateHandler.getPrivacyMode()) : queuedMsg));
+625422:           turn = await stateHandler.createAgentTurn(ctx, persistedUserMessage, queuedReqContext ? fromRedactedRequestContext(queuedReqContext, PrivacyCapability.UNSAFE_ALWAYS_ALLOWED) : new RequestContext(), this.config, this.resourceAccessor);
+625423:           stateHandler.setMode(stateHandler.resolveTurnMode(persistedUserMessage));
+625424:         } catch (error42) {
+625425:           if (consumedClaimedInjection) {
+625426:             this.conversationActionReceiver.failConsumedInjectionDelivery?.();
+625427:           }
+625428:           throw error42;
+625429:         }
+625430:         hasQueuedMessages = true;
+625431:         if (this.config.immediatelyUpdateStateOnNewTurn) {
+625432:           if (this.config.fireAndForgetCheckpoints) {
+625433:             void stateHandler.computeNewStructure(ctx).then(async (newState) => {
+625434:               if (onStateUpdate) {
+625435:                 await onStateUpdate(ctx, newState);
+625436:               }
+625437:             }).catch((error42) => {
+625438:               logger67.error(ctx, "Failed to persist checkpoint after creating queued turn", {
+
+[E12] 等待提前返回机制
+Source: /opt/sand/sand-host/host-main.cjs (635808..635852), version 7345aa4
+635808: var WAKE_REASON_CONTEXT_INJECTION = "context_injection";
+635809: async function sleepOrAbortOrSteerRelease(ctx, ms2, steerSignal) {
+635810:   throwIfAborted(ctx);
+635811:   if (steerSignal?.hasPendingUserInjections()) {
+635812:     return "steer_release";
+635813:   }
+635814:   return await new Promise((resolve30, reject2) => {
+635815:     let timeout2;
+635816:     let unsubscribe;
+635817:     function cleanup() {
+635818:       if (timeout2 !== void 0) {
+635819:         clearTimeout(timeout2);
+635820:         timeout2 = void 0;
+635821:       }
+635822:       ctx.signal.removeEventListener("abort", onAbort);
+635823:       unsubscribe?.();
+635824:       unsubscribe = void 0;
+635825:     }
+635826:     function onAbort() {
+635827:       cleanup();
+635828:       reject2(new ToolCallAbortedError());
+635829:     }
+635830:     ctx.signal.addEventListener("abort", onAbort, { once: true });
+635831:     timeout2 = setTimeout(() => {
+635832:       cleanup();
+635833:       resolve30("timeout");
+635834:     }, ms2);
+635835:     unsubscribe = steerSignal?.onUserInjectionAdmitted(() => {
+635836:       cleanup();
+635837:       resolve30("steer_release");
+635838:     });
+635839:   });
+635840: }
+635841: function normalizePathJoin(base, leaf) {
+635842:   const trimmedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+635843:   return `${trimmedBase}/${leaf}`;
+635844: }
+635845: function findTranscriptInTree(root, targetFileName) {
+635846:   const stack = [root];
+635847:   while (stack.length > 0) {
+635848:     const node = stack.pop();
+635849:     if (!node) {
+635850:       continue;
+635851:     }
+635852:     for (const file2 of node.childrenFiles) {
+
+[E13] Await 返回 stillRunning
+Source: /opt/sand/sand-host/host-main.cjs (636252..636304), version 7345aa4
+636252:           {
+636253:             let unsubscribeSteer;
+636254:             const steerReleasePromise = new Promise((resolve30) => {
+636255:               if (steerSignal === void 0) {
+636256:                 return;
+636257:               }
+636258:               if (steerSignal.hasPendingUserInjections()) {
+636259:                 resolve30("steer_release");
+636260:                 return;
+636261:               }
+636262:               unsubscribeSteer = steerSignal.onUserInjectionAdmitted(() => {
+636263:                 resolve30("steer_release");
+636264:               });
+636265:             });
+636266:             try {
+636267:               const raced = await Promise.race([
+636268:                 rawSubagentAwaitPromise.then((result) => ({ kind: "result", result }), (error42) => ({ kind: "error", error: error42 })),
+636269:                 steerReleasePromise.then(() => ({
+636270:                   kind: "steer_release"
+636271:                 }))
+636272:               ]);
+636273:               if (raced.kind === "error") {
+636274:                 throw raced.error;
+636275:               }
+636276:               if (raced.kind === "steer_release") {
+636277:                 subagentWaitSteerReleased = true;
+636278:                 cancelAwait();
+636279:                 rawSubagentAwaitPromise.catch(() => void 0);
+636280:                 subagentAwaitResult = new SubagentAwaitResult({
+636281:                   result: {
+636282:                     case: "stillRunning",
+636283:                     value: new SubagentAwaitStillRunning({
+636284:                       agentId: taskId,
+636285:                       transcriptPath: await getFallbackTranscriptPath()
+636286:                     })
+636287:                   }
+636288:                 });
+636289:               } else {
+636290:                 subagentAwaitResult = raced.result;
+636291:               }
+636292:             } finally {
+636293:               unsubscribeSteer?.();
+636294:             }
+636295:           }
+636296:           throwIfAborted(toolCtx);
+636297:           switch (subagentAwaitResult.result.case) {
+636298:             case "complete": {
+636299:               const complete = subagentAwaitResult.result.value;
+636300:               const transcriptPath = complete.transcriptPath ?? await getFallbackTranscriptPath();
+636301:               const transcriptSnapshot = await readSubagentTranscriptSnapshot(transcriptPath);
+636302:               const runtimeMs = Math.max(0, Date.now() - startMs);
+636303:               return buildSubagentAwaitSuccess({
+636304:                 case: "complete",
+
+[E14] Shell 前台转后台机制
+Source: /opt/sand/sand-host/host-main.cjs (642214..642278), version 7345aa4
+642214:           let localExecutionTimeMs;
+642215:           let outputLocation;
+642216:           let oomKill2;
+642217:           let actualSandboxPolicy;
+642218:           const steerSignal = meta2.contextInjectionSignal;
+642219:           let stopSteerHandoff;
+642220:           if (steerSignal !== void 0 && !isBackground) {
+642221:             const STEER_HANDOFF_RETRY_MS = 500;
+642222:             let stopped2 = false;
+642223:             let handoffInFlight = false;
+642224:             let handoffAccepted = false;
+642225:             let retryTimer;
+642226:             let unsubscribe;
+642227:             const requestSteerHandoff = () => {
+642228:               if (stopped2 || handoffInFlight || handoffAccepted) {
+642229:                 return;
+642230:               }
+642231:               handoffInFlight = true;
+642232:               void (async () => {
+642233:                 try {
+642234:                   const forceBackgroundExecutor = resourceAccessor.get(forceBackgroundShellExecutorResource);
+642235:                   const forceBackgroundResult = await forceBackgroundExecutor.execute(ctx, new ForceBackgroundShellArgs({
+642236:                     toolCallId: meta2.toolCallId
+642237:                   }), machineId !== void 0 ? { execId, machineId } : void 0);
+642238:                   if (forceBackgroundResult.status === ForceBackgroundShellStatus.ACCEPTED) {
+642239:                     handoffAccepted = true;
+642240:                   }
+642241:                 } catch (error42) {
+642242:                   logger96.debug(ctx, "Steer-driven shell background handoff failed", {
+642243:                     toolCallId: meta2.toolCallId,
+642244:                     error: error42
+642245:                   });
+642246:                 } finally {
+642247:                   handoffInFlight = false;
+642248:                   if (!stopped2 && !handoffAccepted && retryTimer === void 0 && steerSignal.hasPendingUserInjections()) {
+642249:                     retryTimer = setTimeout(() => {
+642250:                       retryTimer = void 0;
+642251:                       requestSteerHandoff();
+642252:                     }, STEER_HANDOFF_RETRY_MS);
+642253:                   }
+642254:                 }
+642255:               })();
+642256:             };
+642257:             stopSteerHandoff = () => {
+642258:               stopped2 = true;
+642259:               if (retryTimer !== void 0) {
+642260:                 clearTimeout(retryTimer);
+642261:                 retryTimer = void 0;
+642262:               }
+642263:               unsubscribe?.();
+642264:               unsubscribe = void 0;
+642265:             };
+642266:             unsubscribe = steerSignal.onUserInjectionAdmitted(() => {
+642267:               requestSteerHandoff();
+642268:             });
+642269:             if (steerSignal.hasPendingUserInjections()) {
+642270:               requestSteerHandoff();
+642271:             }
+642272:           }
+642273:           const wrappedShellStream = async function* () {
+642274:             try {
+642275:               throwIfToolCallAborted(ctx);
+642276:               for await (const shellStream of shellStreamExecutor.execute(ctx, args, {
+642277:                 execId,
+642278:                 hookContextCollector: meta2.hookContextCollector,
+
+[E15] 尚无可见输出时的模型采样抢占
+Source: /opt/sand/sand-host/host-main.cjs (616859..616955), version 7345aa4
+616859: var IDLE_ENDING_CHUNK_TYPES = /* @__PURE__ */ new Set([
+616860:   "text-delta",
+616861:   "tool-call-streaming-start",
+616862:   "tool-call-delta",
+616863:   "tool-call"
+616864: ]);
+616865: var THINKING_CHUNK_TYPES = /* @__PURE__ */ new Set([
+616866:   "reasoning",
+616867:   "reasoning-signature",
+616868:   "redacted-reasoning"
+616869: ]);
+616870: var STEER_IDLE_SAMPLE_PREEMPTED_REASON = "steer_preempted_idle_sample";
+616871: var IdleModelSamplePreempter = class {
+616872:   constructor(options2) {
+616873:     this.options = options2;
+616874:     this.idle = true;
+616875:     this.sawThinking = false;
+616876:     this.stopped = false;
+616877:     this.didPreempt = false;
+616878:     this.now = options2.now ?? (() => Date.now());
+616879:     this.setTimer = options2.setTimer ?? ((fn, ms2) => setTimeout(fn, ms2));
+616880:     this.clearTimer = options2.clearTimer ?? ((handle) => clearTimeout(handle));
+616881:     this.startedAtMs = this.now();
+616882:   }
+616883:   get preempted() {
+616884:     return this.didPreempt;
+616885:   }
+616886:   /** Ms between sample start and the preemption, for logging; undefined if none. */
+616887:   get preemptedAfterMs() {
+616888:     return this.didPreempt ? this.now() - this.startedAtMs : void 0;
+616889:   }
+616890:   get phase() {
+616891:     return this.sawThinking ? "thinking" : "no_output";
+616892:   }
+616893:   start() {
+616894:     if (this.stopped) {
+616895:       return;
+616896:     }
+616897:     this.unsubscribe = this.options.signal.onUserInjectionAdmitted(() => this.arm());
+616898:     if (this.options.signal.hasPendingUserInjections()) {
+616899:       this.arm();
+616900:     }
+616901:   }
+616902:   observeChunk(type2) {
+616903:     if (THINKING_CHUNK_TYPES.has(type2)) {
+616904:       this.sawThinking = true;
+616905:       return;
+616906:     }
+616907:     if (this.idle && IDLE_ENDING_CHUNK_TYPES.has(type2)) {
+616908:       this.idle = false;
+616909:       this.disarm();
+616910:     }
+616911:   }
+616912:   stop() {
+616913:     if (this.stopped) {
+616914:       return;
+616915:     }
+616916:     this.stopped = true;
+616917:     this.disarm();
+616918:     this.unsubscribe?.();
+616919:     this.unsubscribe = void 0;
+616920:   }
+616921:   arm() {
+616922:     if (this.stopped || !this.idle || this.didPreempt || this.timer !== void 0) {
+616923:       return;
+616924:     }
+616925:     const pendingSinceMs = this.options.policy.pendingSinceMs();
+616926:     const waitedMs = pendingSinceMs === void 0 ? 0 : Math.max(0, this.now() - pendingSinceMs);
+616927:     const delayMs = Math.max(0, this.options.policy.graceMs - waitedMs);
+616928:     this.timer = this.setTimer(() => {
+616929:       this.timer = void 0;
+616930:       this.fire();
+616931:     }, delayMs);
+616932:   }
+616933:   disarm() {
+616934:     if (this.timer !== void 0) {
+616935:       this.clearTimer(this.timer);
+616936:       this.timer = void 0;
+616937:     }
+616938:   }
+616939:   fire() {
+616940:     if (this.stopped || !this.idle || this.didPreempt || !this.options.signal.hasPendingUserInjections()) {
+616941:       return;
+616942:     }
+616943:     this.didPreempt = true;
+616944:     this.options.cancel({
+616945:       intentional: true,
+616946:       reason: STEER_IDLE_SAMPLE_PREEMPTED_REASON
+616947:     });
+616948:   }
+616949: };
+616950: function createIdleModelSamplePreempter(signal, cancel) {
+616951:   const policy = signal?.idleModelSamplePreemption;
+616952:   if (signal === void 0 || policy === void 0 || policy.graceMs < 0) {
+616953:     return void 0;
+616954:   }
+616955:   return new IdleModelSamplePreempter({ signal, policy, cancel });
+
+[E16] 当前用户消息提交与停止 RPC
+Source: /opt/sand/sand-host/host-main.cjs (680195..680280), version 7345aa4
+680195:   switch (request5.method) {
+680196:     case "sendPrompt": {
+680197:       const {
+680198:         args
+680199:       } = request5;
+680200:       const response = await client.sendGrokBotUserMessage({
+680201:         agentId: args.agentId,
+680202:         messageId: args.clientNonce,
+680203:         text: args.prompt,
+680204:         sentAtMs: BigInt(Date.now()),
+680205:         richText: args.richText,
+680206:         replyToId: args.replyToId,
+680207:         isFork: args.isFork === true,
+680208:         attachmentPaths: [...args.attachmentPaths ?? []],
+680209:         attachmentNames: [...args.attachmentNames ?? []],
+680210:         traceparent: args.traceparent,
+680211:         enterEpochMs: args.enterEpochMs === void 0 ? void 0 : BigInt(args.enterEpochMs),
+680212:         composedAtMs: args.composedAtMs === void 0 ? void 0 : BigInt(args.composedAtMs),
+680213:         source: clientSurfaceProto(args.source),
+680214:         ...sessionIdField(args.sessionId),
+680215:         ...args.machineId != null && args.machineId.length > 0 ? {
+680216:           machineId: args.machineId
+680217:         } : {},
+680218:         ...args.onePasswordAppInstalled === true ? {
+680219:           onePasswordAppInstalled: true
+680220:         } : {},
+680221:         ...args.mcpConfigJson === void 0 ? {} : {
+680222:           mcpConfigJson: args.mcpConfigJson
+680223:         },
+680224:         ...args.taskId === void 0 ? {} : {
+680225:           taskId: args.taskId
+680226:         },
+680227:         initiator: messageInitiatorProto(args.initiator),
+680228:         sendSource: mobileSendSourceProto(args.sendSource)
+680229:       }, callOptions);
+680230:       switch (response.delivery) {
+680231:         case GrokBotUserMessageDelivery.ACCEPTED_BOX:
+680232:         case GrokBotUserMessageDelivery.ACCEPTED_TEMPORAL:
+680233:         case GrokBotUserMessageDelivery.DUPLICATE:
+680234:           return {
+680235:             status: "ok",
+680236:             value: {
+680237:               accepted: true
+680238:             }
+680239:           };
+680240:         case GrokBotUserMessageDelivery.REFUSED:
+680241:           return refused(response.refusal, request5.method);
+680242:         case GrokBotUserMessageDelivery.UNSPECIFIED:
+680243:           return unreadableDelivery(response.delivery);
+680244:         default: {
+680245:           const _exhaustive = response.delivery;
+680246:           return unreadableDelivery(_exhaustive);
+680247:         }
+680248:       }
+680249:     }
+680250:     case "promptAcceptanceStatus": {
+680251:       const {
+680252:         args
+680253:       } = request5;
+680254:       const response = await client.getGrokBotSendStatus({
+680255:         agentId: args.agentId,
+680256:         messageId: args.clientNonce,
+680257:         ...sessionIdField(args.sessionId)
+680258:       }, callOptions);
+680259:       return {
+680260:         status: "ok",
+680261:         value: acceptanceLookupOf({
+680262:           ...args,
+680263:           response
+680264:         })
+680265:       };
+680266:     }
+680267:     case "interruptAgentRun": {
+680268:       const response = await client.interruptGrokBotAgentRun({
+680269:         agentId: request5.args.id,
+680270:         reason: "user_interrupt",
+680271:         ...request5.args.sessionId != null ? {
+680272:           sessionId: request5.args.sessionId
+680273:         } : {}
+680274:       }, callOptions);
+680275:       return {
+680276:         status: "ok",
+680277:         value: {
+680278:           hadActiveRun: response.hadActiveRun
+680279:         }
+680280:       };
+
+[E17] 云端执行的代理识别
+Source: /opt/sand/sand-host/host-main.cjs (684410..684446), version 7345aa4
+684410:   });
+684411: }
+684412: function createServerAgentProxy(deps) {
+684413:   const clock = deps.clock ?? realClock;
+684414:   const lingerMs = deps.lingerMs ?? SERVER_AGENT_PROXY_TAIL_LINGER_MS;
+684415:   const reconcileMinIntervalMs = deps.reconcileMinIntervalMs ?? SERVER_AGENT_PROXY_RECONCILE_MIN_INTERVAL_MS;
+684416:   const requiredAgents = /* @__PURE__ */ new Set();
+684417:   const knownAgents = /* @__PURE__ */ new Set();
+684418:   const reconciledUnknownAgents = /* @__PURE__ */ new Set();
+684419:   const refreshRoster = () => {
+684420:     const agents = deps.listAgentsSync();
+684421:     const added = agents.filter(
+684422:       (agent) => agent.harness === "temporal" && !requiredAgents.has(agent.id)
+684423:     );
+684424:     requiredAgents.clear();
+684425:     knownAgents.clear();
+684426:     for (const agent of agents) {
+684427:       knownAgents.add(agent.id);
+684428:       if (agent.harness === "temporal") requiredAgents.add(agent.id);
+684429:     }
+684430:     for (const agent of added) indexer.noteAgent(agent.id);
+684431:   };
+684432:   const resolveAccess = deps.resolveAccess ?? (async () => {
+684433:     if (deps.auth.peekAccessToken() == null) return { enabled: false };
+684434:     const { backendUrl, headers } = await resolveSandBackendRequestHeaderRecord({
+684435:       backend: deps.backend,
+684436:       getAccessToken: deps.auth.getAccessToken,
+684437:       getTeamId: deps.auth.getTeamId,
+684438:       getMachineId: deps.auth.getMachineId
+684439:     });
+684440:     return { enabled: true, legacyEnabled: false, baseUrl: backendUrl, headers };
+684441:   });
+684442:   let boundEmit = null;
+684443:   let boundRunStateChanged = null;
+684444:   const activityOverlays = /* @__PURE__ */ new Map();
+684445:   const patchClientOverlay = (agentId, patch) => {
+684446:     const current2 = activityOverlays.get(agentId);
+
+[E18] 本地旧执行入口已退役
+Source: /opt/sand/sand-host/host-main.cjs (706500..706522), version 7345aa4
+706500:   async sendPrompt(prompt, options2) {
+706501:     const hasAttachments = (options2.attachmentPaths ?? []).some((path31) => typeof path31 === "string");
+706502:     if (prompt.trim().length === 0 && !hasAttachments) return;
+706503:     if (options2.directAddressedAcceptance !== true) {
+706504:       await this.tm.sessions.ensureActionTarget(options2.agentId);
+706505:     } else if (options2.agentId != null && this.tm.sessions.isAgentGone(options2.agentId)) {
+706506:       throw new AgentGoneError(options2.agentId);
+706507:     }
+706508:     const gatedAgentId = options2.agentId ?? this.tm.sessions.activeSession?.id;
+706509:     if (gatedAgentId != null && this.tm.sessions.isServerHostedAgent(gatedAgentId)) {
+706510:       this.tm.boxHarnessRefusals.reportServerHostedSkipped({
+706511:         conversationId: gatedAgentId,
+706512:         entry: "send",
+706513:         source: "turn"
+706514:       });
+706515:       throw this.tm.groupChat.isGroupAgentId(gatedAgentId) ? new SandServerRoomSendError(SERVER_ROOM_SEND_REFUSAL) : new SandBoxHarnessRetiredError();
+706516:     }
+706517:     this.refuseBoxTurn(gatedAgentId ?? "unknown");
+706518:   }
+706519:   refuseBoxTurn(conversationId) {
+706520:     this.tm.boxHarnessRefusals.reportBlocked({ conversationId, entry: "send", source: "turn" });
+706521:     throw new SandBoxHarnessRetiredError();
+706522:   }
+
+[E19] 本地旧 scheduler 的优先级
+Source: /opt/sand/sand-host/host-main.cjs (706071..706092), version 7345aa4
+706071:   pump(agentId) {
+706072:     if (this.disposed) return;
+706073:     const queue = this.queues.get(agentId);
+706074:     if (queue == null || queue.active != null) return;
+706075:     let next;
+706076:     if (queue.pendingUser.length > 0) {
+706077:       next = takeNextUserTask(queue.pendingUser);
+706078:     } else if (queue.pendingAgent.length > 0) {
+706079:       next = queue.pendingAgent.shift();
+706080:     } else {
+706081:       next = queue.pendingBackground.shift();
+706082:     }
+706083:     if (next == null) {
+706084:       this.disarmWatchdog(queue);
+706085:       return;
+706086:     }
+706087:     const generation = ++queue.generationCounter;
+706088:     let markSettled;
+706089:     const settled = new Promise((resolve30) => {
+706090:       markSettled = resolve30;
+706091:     });
+706092:     const active = {
+
+[E20] 云端代理 queue / steer / interrupt 的 feature gate
+Source: /opt/sand/sand-host/host-main.cjs (718177..718206), version 7345aa4
+718177:   /**
+718178:    * Statsig `grok_bot_cloud_agent_durable_watch`, read per turn on both hosts.
+718179:    * Off: a cloud-agent watch wakes the bot once, when the run it registered
+718180:    * against finishes, and the tool keeps its one-shot copy. On: launch / reply
+718181:    * / watch of an owned agent stay armed across every later run, `unwatch`
+718182:    * and `watch confirm: true` adoption exist, and the revival carries the
+718183:    * runaway notice.
+718184:    */
+718185:   cloudAgentDurableWatch: false,
+718186:   /**
+718187:    * Statsig `grok_bot_cloud_agent_reply_modes`. Off: CloudAgent `reply` is
+718188:    * today's queue-or-interrupt follow-up. On: `reply` takes `mode`
+718189:    * (queue | steer | interrupt), where steer injects into the agent's running
+718190:    * turn and falls back to queue when it is idle. Temporal-only: the box host
+718191:    * has no steer port and pins it off.
+718192:    */
+718193:   cloudAgentReplyModes: false,
+718194:   cloudAgentPublishRepository: false,
+718195:   appsPublish: false,
+718196:   cloudAgentPublishApp: false,
+718197:   originBuiltinMounted: false,
+718198:   cloudAgentExchange: false,
+718199:   cloudCanvasTools: false,
+718200:   sendToAgentRoster: false,
+718201:   automationSendToAgent: false,
+718202:   taskSubagentRoster: false,
+718203:   executorForkContext: false,
+718204:   executorLeanPrompt: false,
+718205:   subagentDynamicTools: false,
+718206:   sendToUserReminderDelegation: false,
+
+[E21] 后台 routine 通知路由规则
+Source: /opt/sand/sand-host/host-main.cjs (718099..718129), version 7345aa4
+718099:   "- A declined, unapproved, or expired send is final. Don't retry it, reword it, or reach the recipient another way; tell the user it didn't go out."
+718100: ];
+718101: var APPS_PUBLISH_LAUNCH_SENTENCE = `When the user wants it online or shareable and names no other host, put it online with ${GROK_BOT_TOOL_NAMES.CloudAgent} publish_app once it is built; its Publish card is the ask, so don't ask first or route it through a repo publish, Vercel, or a canvas.`;
+718102: var CLOUD_AGENTS_DISABLED_BY_TEAM_CODE_CHANGES_BODY = [
+718103:   "Cursor cloud agents are disabled by your team's admin: you cannot launch or manage them, and you do not perform non-trivial repository changes or broad code investigation yourself. Say so plainly and point the user to Cursor.",
+718104:   `Use the built-in source-control tools when they are in your tool list (\`cursor-github-*\` for GitHub, \`cursor-origin-*\` for Cursor Origin), otherwise the provider's remote read-only CLI or API (\`gh\` for GitHub, \`glab\` for GitLab, or the Bitbucket / Azure DevOps API) or web views only for a narrow lookup (a file, a diff, a PR or issue, blame, commit history). ${builtinScmAbsenceGuidance({ cloudAgentsEnabled: false })} Repository checkouts stay off every computer you can reach; never clone, fetch, download, or unpack one to work around this.`
+718105: ];
+718106: var SKILL_BACKED_BASE_HEADINGS = /* @__PURE__ */ new Set([
+718107:   "## Managing plugins and connectors",
+718108:   "## Reaching services that have no connector",
+718109:   "## Writing on the user's behalf",
+718110:   AGENT_EMAIL_HEADING,
+718111:   "## Cursor Origin",
+718112:   CODE_CHANGES_HEADING,
+718113:   MainLoopVoicePrompt.section().heading
+718114: ]);
+718115: var AUTOMATION_UNAUTHORIZED_SEND_DRAFT_HANDOFF = `Otherwise tell the parent to call ${GROK_BOT_TOOL_NAMES.DraftExternalMessage}, and ${NATIVE_CONNECTOR_DRAFT_BAN} Put that ask in ${GROK_BOT_TOOL_NAMES.WakeParent} when you have it, and in your final message otherwise. ${DRAFT_HANDOFF_DETAILS} ${MAILBOX_DRAFT_EXCEPTION}`;
+718116: var AUTOMATION_RUN_LIMITS_LINE = "- You can't change the visible transcript, message the user or another agent, react, ask a question, or surface a form, handoff, connector, draft, or share card. The only cards your work may raise are Auto-review and local-exec approvals.";
+718117: var AUTOMATION_RUN_WAKE_PARENT_LINE = `- ${GROK_BOT_TOOL_NAMES.WakeParent} is the only way to reach the user or another agent from this run. Call it when the saved instruction asks you to ping, remind, tell, notify, ask, or say something to the user, even when the work succeeded, and when the parent must message an agent, make a decision, or take over a blocker. It ends your turn immediately, so include the complete outcome and what the parent should say or do.`;
+718118: var AUTOMATION_RUN_SENDS_TO_AGENTS_WAKE_PARENT_LINE = `- ${GROK_BOT_TOOL_NAMES.WakeParent} is the only way to reach the user from this run. Call it when the saved instruction asks you to ping, remind, tell, notify, ask, or say something to the user, even when the work succeeded, and when the parent must make a decision or take over a blocker. It ends your turn immediately, so include the complete outcome and what the parent should say or do. You reach the user's other agents and group chats yourself with ${GROK_BOT_TOOL_NAMES.SendToAgent}, as Teammates and groups describes; those sends are internal and follow that section, not the rule below for email or messages to people.`;
+718119: var SAND_AUTOMATION_SUBAGENT_PROMPT_SECTION = {
+718120:   heading: "## Automation run",
+718121:   body: [
+718122:     "You are running an automation as a fresh subagent with the parent agent's work capabilities. Complete the saved instruction autonomously.",
+718123:     AUTOMATION_RUN_LIMITS_LINE,
+718124:     `- Older saved instructions may name ${GROK_BOT_TOOL_NAMES.SendMessage} or ${GROK_BOT_TOOL_NAMES.SendToUser}; neither exists in this run. Treat either as a request for user-visible communication and call ${GROK_BOT_TOOL_NAMES.WakeParent} with the full payload instead.`,
+718125:     AUTOMATION_RUN_WAKE_PARENT_LINE,
+718126:     "- Stay quiet by default: no acknowledgements, progress narration, or unsolicited offers. Guidance elsewhere to acknowledge, post updates, or ask with a widget doesn't apply here.",
+718127:     `- Email or messages to anyone but the user go out only when the saved instruction names that message and those recipients. ${AUTOMATION_UNAUTHORIZED_SEND_DRAFT_HANDOFF} Reading mail is not answering it.`,
+718128:     `- When the result can wait for the parent's next natural stopping point, skip ${GROK_BOT_TOOL_NAMES.WakeParent} and end with a complete final assistant message in plain text; it is saved silently as the automation result. Earlier assistant messages are not included.`
+718129:   ]
+
+[E22] server-agent 消息确认、去重和重试
+Source: /opt/sand/sand-host/host-main.cjs (680713..680746), version 7345aa4
+680713: }
+680714: function createServerAgentActionCore(client) {
+680715:   return async (request5) => {
+680716:     try {
+680717:       return await perform(client, request5);
+680718:     } catch (error42) {
+680719:       if (request5.method !== "sendPrompt" || !isNonceDedupedSendReplayable(error42)) {
+680720:         return classifyServerAgentActionError(error42, request5.method);
+680721:       }
+680722:       const firstAttempt = classifyServerAgentActionError(error42);
+680723:       try {
+680724:         const {
+680725:           agentId,
+680726:           clientNonce
+680727:         } = request5.args;
+680728:         const probe = await client.getGrokBotSendStatus({
+680729:           agentId,
+680730:           messageId: clientNonce,
+680731:           ...sessionIdField(request5.args.sessionId)
+680732:         }, {
+680733:           timeoutMs: SERVER_AGENT_ACTION_TIMEOUT_MS
+680734:         });
+680735:         const lookup3 = acceptanceLookupOf({
+680736:           agentId,
+680737:           clientNonce,
+680738:           response: probe
+680739:         });
+680740:         if (lookup3.outcome !== "not-found") return firstAttempt;
+680741:         return await perform(client, request5);
+680742:       } catch (retryError) {
+680743:         return classifyServerAgentActionError(retryError);
+680744:       }
+680745:     }
+680746:   };

@@ -1,0 +1,61 @@
+701667: // src/host/extensions/transcript/background-wakes.ts
+701668: var BackgroundWakes = class {
+701669:   constructor(tm) {
+701670:     this.tm = tm;
+701671:     this.agentToAgent = new AgentToAgentMessaging(tm);
+701672:   }
+701673:   tm;
+701674:   agentToAgent;
+701675:   sendToAgent(...args) {
+701676:     return this.agentToAgent.sendToAgent(...args);
+701677:   }
+701678:   sendToRemotePeer(...args) {
+701679:     return this.agentToAgent.sendToRemotePeer(...args);
+701680:   }
+701681:   receivePeerAgentMessage(...args) {
+701682:     return this.agentToAgent.receiveFromPeer(...args);
+701683:   }
+701684:   appendAgentOutboundEntry(...args) {
+701685:     this.agentToAgent.appendAgentOutboundEntry(...args);
+701686:   }
+701687:   appendAgentInboundEntry(...args) {
+701688:     return this.agentToAgent.appendAgentInboundEntry(...args);
+701689:   }
+701690:   emitTimelineEvent(agentId, event) {
+701691:     if (this.tm.sessions.isAgentGone(agentId)) return;
+701692:     void this.recordTimelineEvent(agentId, event);
+701693:   }
+701694:   async recordTimelineEvent(agentId, event) {
+701695:     var _stack = [];
+701696:     try {
+701697:       let leased;
+701698:       try {
+701699:         leased = await this.tm.sessions.leaseBackgroundSession(agentId);
+701700:       } catch {
+701701:         return;
+701702:       }
+701703:       const lease = __using(_stack, leased);
+701704:       const { session } = lease;
+701705:       if (this.tm.groupChat.isGroupSession(session)) return;
+701706:       this.appendTimelineEventEntry(session, event);
+701707:     } catch (_2) {
+701708:       var _error = _2, _hasError = true;
+701709:     } finally {
+701710:       __callDispose(_stack, _error, _hasError);
+701711:     }
+701712:   }
+701713:   appendTimelineEventEntry(session, event) {
+701714:     const entry = {
+701715:       kind: "event",
+701716:       id: `event-${crypto.randomUUID()}`,
+701717:       event,
+701718:       timestampMs: Date.now()
+701719:     };
+701720:     if (session.id === this.tm.sessions.activeSession?.id) {
+701721:       this.tm.appendEntry(entry);
+701722:     } else {
+701723:       session.db.appendTranscriptEntry(entry);
+701724:     }
+701725:   }
+701726: };
+701727: 

@@ -1,0 +1,22 @@
+739198: // ../packages/grok-bot-harness/src/runner/tools/wake-parent/wake-parent-tool.ts
+739199: init_zod();
+739200: function createWakeParentTool(deps) {
+739201:   return defineCommunicateTool(deps, {
+739202:     id: "WAKE_PARENT",
+739203:     name: GROK_BOT_TOOL_NAMES.WakeParent,
+739204:     description: `End this automation turn immediately and wake the parent agent so it can take over. You MUST use this when the saved instruction itself requires user-visible communication, such as pinging, reminding, telling, notifying, asking, or saying something to the user, because the parent is the only route to the user; a normal final assistant response does not wake the parent or reach the user. Old saved instructions may name ${GROK_BOT_TOOL_NAMES.SendMessage} or ${GROK_BOT_TOOL_NAMES.SendToUser}; both are deprecated and unavailable here, so treat either as communication intent, do not try to discover or call it, and use ${GROK_BOT_TOOL_NAMES.WakeParent} with the complete payload or handoff. Also use this when the parent must communicate with another agent, make a decision, or handle a blocker you cannot resolve autonomously. Do not use it for background results that can wait until the parent's next natural safe boundary. Put the complete outcome, relevant context, and what the parent should communicate or do in the message; you cannot continue or add anything after this call.`,
+739205:     parameters: external_exports.object({
+739206:       message: external_exports.string().trim().min(1).describe(
+739207:         "The complete handoff for the parent: what happened, why it is being woken, and exactly what it should communicate or do next."
+739208:       )
+739209:     }),
+739210:     execute: async (_ctx, args, toolDeps) => {
+739211:       toolDeps.requestAutomationParentWake({
+739212:         message: args.message,
+739213:         wakeParentToolCallId: toolDeps.toolCallId
+739214:       });
+739215:       return "The parent was awakened and this automation turn has ended.";
+739216:     }
+739217:   });
+739218: }
+739219: 

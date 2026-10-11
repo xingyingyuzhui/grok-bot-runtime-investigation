@@ -1,0 +1,193 @@
+706221: // src/host/extensions/transcript/run-lifecycle.ts
+706222: var RUN_WATCHDOG_DEFAULT_MS = 12e4;
+706223: var RUN_WATCHDOG_GRACE_DEFAULT_MS = 3e4;
+706224: var RunLifecycle = class {
+706225:   constructor(tm, environment) {
+706226:     this.tm = tm;
+706227:     this.runScheduler = environment.schedulerDisabled ? null : new SandRunScheduler({
+706228:       watchdogMs: environment.watchdogMs ?? RUN_WATCHDOG_DEFAULT_MS,
+706229:       watchdogGraceMs: environment.watchdogGraceMs ?? RUN_WATCHDOG_GRACE_DEFAULT_MS,
+706230:       telemetry: {
+706231:         onAccepted: (event) => this.tm.telemetry.reportQueueAccepted({
+706232:           conversationId: event.agentId,
+706233:           lane: event.lane,
+706234:           source: event.source,
+706235:           position: event.position,
+706236:           depthUser: event.depthUser,
+706237:           depthAgent: event.depthAgent,
+706238:           depthBackground: event.depthBackground,
+706239:           hasActive: event.hasActive
+706240:         }),
+706241:         onDequeued: (event) => this.tm.telemetry.reportQueueDequeued({
+706242:           conversationId: event.agentId,
+706243:           lane: event.lane,
+706244:           source: event.source,
+706245:           queueWaitMs: event.queueWaitMs,
+706246:           ...event.acceptedToRunMs != null ? { acceptedToRunMs: event.acceptedToRunMs } : {},
+706247:           jumpedBackground: event.jumpedBackground,
+706248:           depthUser: event.depthUser,
+706249:           depthAgent: event.depthAgent,
+706250:           depthBackground: event.depthBackground
+706251:         }),
+706252:         onWatchdog: (event) => {
+706253:           this.tm.telemetry.reportQueueWatchdog({
+706254:             conversationId: event.agentId,
+706255:             stage: event.stage,
+706256:             activeLane: event.activeLane,
+706257:             activeSource: event.activeSource,
+706258:             activeRuntimeMs: event.activeRuntimeMs,
+706259:             ...event.waitingUserAgeMs != null ? { waitingUserAgeMs: event.waitingUserAgeMs } : {}
+706260:           });
+706261:         }
+706262:       }
+706263:     });
+706264:   }
+706265:   tm;
+706266:   inFlightRunCounts = /* @__PURE__ */ new Map();
+706267:   activeRequestSources = /* @__PURE__ */ new Map();
+706268:   runWindowStartedAt = /* @__PURE__ */ new Map();
+706269:   runChains = /* @__PURE__ */ new Map();
+706270:   runScheduler;
+706271:   retiringSessions = /* @__PURE__ */ new WeakSet();
+706272:   serverActivityOverlayProvider = null;
+706273:   enqueueExclusiveRun(agentId, task, options2) {
+706274:     if (this.tm.disposed) return Promise.resolve().then(options2.onCancelled);
+706275:     const scheduler = this.runScheduler;
+706276:     if (scheduler != null) {
+706277:       return scheduler.enqueue(agentId, task, options2);
+706278:     }
+706279:     const previous = this.runChains.get(agentId) ?? Promise.resolve();
+706280:     const result = previous.then(() => {
+706281:       if (this.tm.disposed) return options2.onCancelled?.();
+706282:       return task();
+706283:     });
+706284:     this.runChains.set(
+706285:       agentId,
+706286:       Promise.allSettled([result]).then(() => {
+706287:       })
+706288:     );
+706289:     return result;
+706290:   }
+706291:   async drainExclusiveRuns(agentId) {
+706292:     if (this.runScheduler != null) {
+706293:       await this.runScheduler.drain(agentId);
+706294:       return;
+706295:     }
+706296:     await this.runChains.get(agentId);
+706297:   }
+706298:   getRunQueueDiagnostics() {
+706299:     const scheduler = this.runScheduler;
+706300:     if (scheduler == null) return [];
+706301:     const byAgent = /* @__PURE__ */ new Map();
+706302:     for (const queue of scheduler.getDiagnostics()) {
+706303:       byAgent.set(queue.agentId, { ...queue, ackOutstanding: false });
+706304:     }
+706305:     return [...byAgent.values()];
+706306:   }
+706307:   beginSessionRun(session) {
+706308:     const inFlight = this.inFlightRunCounts.get(session) ?? 0;
+706309:     if (inFlight === 0) {
+706310:       this.runWindowStartedAt.set(session, Date.now());
+706311:     }
+706312:     this.inFlightRunCounts.set(session, inFlight + 1);
+706313:     this.tm.sessions.liveSessions.set(session.id, session);
+706314:     void this.tm.roster.emitAgentUpdate(session.id);
+706315:   }
+706316:   endSessionRun(session) {
+706317:     if (!this.inFlightRunCounts.has(session)) return;
+706318:     const remaining = (this.inFlightRunCounts.get(session) ?? 1) - 1;
+706319:     if (remaining > 0) {
+706320:       this.inFlightRunCounts.set(session, remaining);
+706321:       return;
+706322:     }
+706323:     this.inFlightRunCounts.delete(session);
+706324:     this.recordTurnCompleted(session);
+706325:     this.activeRequestSources.delete(session.id);
+706326:     const endedAgentId = session.id;
+706327:     void this.retireSession(session);
+706328:     void this.tm.roster.emitAgentUpdate(endedAgentId);
+706329:   }
+706330:   recordTurnCompleted(session) {
+706331:     const startedAt = this.runWindowStartedAt.get(session);
+706332:     this.runWindowStartedAt.delete(session);
+706333:     const source = this.activeRequestSources.get(session.id) ?? "turn";
+706334:     this.tm.productAnalytics.trackEvent("sand.turn.completed", {
+706335:       agent_id: brandedId(session.id) ?? "invalid",
+706336:       source,
+706337:       initiator: classifySandTurnInitiator({ isSubagentRunner: false, requestSource: source }),
+706338:       is_group: this.tm.groupChat.isGroupSession(session),
+706339:       duration_ms: startedAt != null ? Date.now() - startedAt : 0,
+706340:       request_ids: "[]"
+706341:     });
+706342:   }
+706343:   isSessionRetiring(session) {
+706344:     return this.retiringSessions.has(session);
+706345:   }
+706346:   async retireSession(session) {
+706347:     if (session == null) return;
+706348:     const pending = this.tm.sessions.pendingSessionOpens.get(session.id);
+706349:     const ownsPendingOpen = pending != null && await this.tm.sessions.settledOpen(pending) === session;
+706350:     if (session === this.tm.sessions.activeSession) return;
+706351:     if (this.tm.sessions.deferSessionRetirementWhileActivating(session)) return;
+706352:     if (this.inFlightRunCounts.has(session)) return;
+706353:     if (this.tm.disposed || this.tm.sessions.deletedAgentIds.has(session.id)) return;
+706354:     if (this.retiringSessions.has(session)) return;
+706355:     this.retiringSessions.add(session);
+706356:     if (this.tm.sessions.liveSessions.get(session.id) === session) {
+706357:       this.tm.sessions.liveSessions.delete(session.id);
+706358:     }
+706359:     if (ownsPendingOpen && this.tm.sessions.pendingSessionOpens.get(session.id) === pending) {
+706360:       this.tm.sessions.pendingSessionOpens.delete(session.id);
+706361:     }
+706362:     try {
+706363:       try {
+706364:         await session.agentStore.dispose();
+706365:       } finally {
+706366:         session.db.close();
+706367:       }
+706368:     } catch (error42) {
+706369:       this.tm.hostLog(`[sand] could not dispose a retired session: ${errorLogTag(error42)}`, "error");
+706370:       reportFallback("transcript_manager", error42);
+706371:     }
+706372:   }
+706373:   runningAgentIds() {
+706374:     return new Set([...this.inFlightRunCounts.keys()].map((session) => session.id));
+706375:   }
+706376:   setServerActivityOverlayProvider(provider) {
+706377:     this.serverActivityOverlayProvider = provider;
+706378:   }
+706379:   withRunStates(agents) {
+706380:     const running = this.runningAgentIds();
+706381:     return agents.map((agent) => {
+706382:       const summary = withoutBoxAwaitingForTemporal(agent);
+706383:       if (agent.harness === "temporal") {
+706384:         const overlay2 = this.serverActivityOverlayProvider?.(agent.id);
+706385:         if (overlay2 != null) return overlaidAgentSummaryOf(summary, overlay2);
+706386:       }
+706387:       const isRunning = running.has(agent.id);
+706388:       const activeGroupMemberId = isRunning ? this.tm.groupChat.activeTemporalMemberIdsByGroup.get(agent.id) : void 0;
+706389:       if (summary.isRunning === isRunning && (summary.isRunningTurn ?? false) === isRunning && summary.isComposingMessage === false && (summary.isRetrying ?? false) === false && summary.currentActivity === void 0 && summary.activeGroupMemberId === activeGroupMemberId) {
+706390:         return summary;
+706391:       }
+706392:       return {
+706393:         ...summary,
+706394:         isRunning,
+706395:         isRunningTurn: isRunning,
+706396:         isComposingMessage: false,
+706397:         isRetrying: false,
+706398:         currentActivity: void 0,
+706399:         activeGroupMemberId
+706400:       };
+706401:     });
+706402:   }
+706403:   closeSessionWhenIdle(session) {
+706404:     if (this.inFlightRunCounts.has(session)) return;
+706405:     session.db.close();
+706406:   }
+706407:   watchActiveSession(session) {
+706408:     this.tm.automationRuntime.watchSessionAutomations(session);
+706409:     this.tm.skillCommands.watchSessionSkills(session);
+706410:     this.tm.roster.watchSessionProfile(session);
+706411:   }
+706412: };
+706413: 

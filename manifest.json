@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "collection_date": "2026-10-12",
+  "host_bundle_version": "7345aa4",
+  "scope": "static code, generic skills, code excerpts and identity-sanitized investigation report",
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 284,
+      "sha256": "631e99389855b5ae8f002875ea8c892b54468d80e818e75a5929f9ae617f4179"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2713,
+      "sha256": "d8d4a837eed73b5cf4ac94455f81086a24e0e71246dc3a7f27d19ae42804c55a"
+    },
+    {
+      "path": "SECRET_SCAN.md",
+      "bytes": 1037,
+      "sha256": "07cc696f5eaa7b6960186506888b4e074e750efce9cd91300267fa0b503a47fe"
+    },
+    {
+      "path": "evidence-index.json",
+      "bytes": 306,
+      "sha256": "16bc3f68e2a9b425a9748c10849495d27094b8e2fde94163b1957a47fc9f8b7c"
+    },
+    {
+      "path": "evidence.txt",
+      "bytes": 70009,
+      "sha256": "4b03d4047c8d5eaaa4e3198c8928fef09130a6455c8959acf2a4ce7e31167fff"
+    },
+    {
+      "path": "excerpts/679744-server-agent-action-core.ts.txt",
+      "bytes": 38720,
+      "sha256": "60070dde0f29ac79ea93d079754a590eeb4ce1360442850f609e88a05ff6cf74"
+    },
+    {
+      "path": "excerpts/701290-agent-to-agent-messaging.ts.txt",
+      "bytes": 162,
+      "sha256": "01d60c8c533e1851c81035f3892ef4441842579ffcf159f34193c7951471437e"
+    },
+    {
+      "path": "excerpts/701370-agent-to-agent-messaging.ts.txt",
+      "bytes": 13735,
+      "sha256": "29dd3411d9f620f5b5ffb51888805163994b84dc2adeba638d2560028310fe8c"
+    },
+    {
+      "path": "excerpts/701667-background-wakes.ts.txt",
+      "bytes": 2201,
+      "sha256": "8a4ba8b3a8c6c71154bdc0542e0689a8ab9499dfb3c931fe5f0ad34994f3089b"
+    },
+    {
+      "path": "excerpts/703193-turn-runtime.ts.txt",
+      "bytes": 141,
+      "sha256": "4a817cc9398b8ec1944d6ac61e92856cbbfafc89739e6715d7c0afbf9c0893f6"
+    },
+    {
+      "path": "excerpts/703639-turn-runtime.ts.txt",
+      "bytes": 2528,
+      "sha256": "09ddb3979648b2cf2b27ab7cbd1386ed8e991bb2d2b83b2f216bc81df0255f24"
+    },
+    {
+      "path": "excerpts/704273-session-runtime.ts.txt",
+      "bytes": 24799,
+      "sha256": "f379f5353fe4978be77a9c19d97124502686a2d33e7f634eccceaff6d7cc1931"
+    },
+    {
+      "path": "excerpts/705907-turn-initiator.ts.txt",
+      "bytes": 839,
+      "sha256": "d7552bfc70597d724c1c2ca34035af0130e1c8874c992cdc631130d5a3ebde20"
+    },
+    {
+      "path": "excerpts/705927-run-lifecycle.ts.txt",
+      "bytes": 115,
+      "sha256": "2ee6551055bc1ca4690e5d77d36752a9db09c76611e6300001f39d1355cd48a4"
+    },
+    {
+      "path": "excerpts/705931-run-scheduler.ts.txt",
+      "bytes": 12022,
+      "sha256": "6208280ad2d989104eec9867fb9cbee14e9f58bcf2f492ca3f4194ec13a831de"
+    },
+    {
+      "path": "excerpts/706221-run-lifecycle.ts.txt",
+      "bytes": 9112,
+      "sha256": "46282736407c2eb7c30741a735eb166f084fd76c49e11fd3571833f57bb85ca5"
+    },
+    {
+      "path": "excerpts/706414-send-pipeline.ts.txt",
+      "bytes": 177,
+      "sha256": "77b1d59d0809fc42c674775288cb59bbe78c326b78b3584e326fc99df6415c46"
+    },
+    {
+      "path": "excerpts/706487-send-pipeline.ts.txt",
+      "bytes": 5072,
+      "sha256": "5b504dfa2dc83ed4ade2fef9659f888deaea4de65a1989d50d5e4518eaefe555"
+    },
+    {
+      "path": "excerpts/706729-agent-todos.ts.txt",
+      "bytes": 123,
+      "sha256": "6467b673d8f454020090af7700d6761e9226d04175075b33742050a6db682db0"
+    },
+    {
+      "path": "excerpts/706761-agent-todos.ts.txt",
+      "bytes": 1779,
+      "sha256": "df57c59f0404e04e7f0c095c212ac2917c50f40d14cb8175e1d51571018b4318"
+    },
+    {
+      "path": "excerpts/717886-sand-multitask.ts.txt",
+      "bytes": 2386,
+      "sha256": "ce9385c14456d32dd62ca42570defd636601025c60b04aa44ff3edf6d693f508"
+    },
+    {
+      "path": "excerpts/718293-subagent-runtime.ts.txt",
+      "bytes": 103,
+      "sha256": "819b719196f455eaf92c07196913c14f4c8cab5b748cbc10ab58fbcd346b7864"
+    },
+    {
+      "path": "excerpts/718679-multitask-prompt.ts.txt",
+      "bytes": 9044,
+      "sha256": "afb93427e6d7d88f51e6dc1359166397feda33f428fd8980d9e01024d315346f"
+    },
+    {
+      "path": "excerpts/723524-executor-lean-prompt.ts.txt",
+      "bytes": 935,
+      "sha256": "ee84b6ef083b3ec4572b6ef71caafb3b4dc3a450746df0fd27497b61b858f8bb"
+    },
+    {
+      "path": "excerpts/728277-sand-subagent-management-tools.ts.txt",
+      "bytes": 151,
+      "sha256": "9d1b4162cbaedda4a190118d83aae668899c601d2cd7eff47bca87808d8da416"
+    },
+    {
+      "path": "excerpts/728288-sand-subagent-management-tools.ts.txt",
+      "bytes": 20508,
+      "sha256": "eba20c7370cf81940338b7193851956650552adbbd6b4e153dd64cd198ae0116"
+    },
+    {
+      "path": "excerpts/735713-sand-task-tool.ts.txt",
+      "bytes": 4232,
+      "sha256": "deb6946d88f8fa4b83ba57e6f22c3599e26f25fe571123b63b7012a7717a47d1"
+    },
+    {
+      "path": "excerpts/739198-wake-parent-tool.ts.txt",
+      "bytes": 2050,
+      "sha256": "1cff3502a5a6c4c80c9fe5c299586bef7f4d1f66ddfc9eca79d1eb86df35f274"
+    },
+    {
+      "path": "excerpts/739686-subagent-revival-prompt.ts.txt",
+      "bytes": 3226,
+      "sha256": "239a655d7319ad052ad50d22c23e66e3ee01b5ca75c7eacbac46e28049a46639"
+    },
+    {
+      "path": "excerpts/index.tsv",
+      "bytes": 2393,
+      "sha256": "65a8b99c57f6c0c73e5d28b0f63770d525be1bb96445f2e3d8dd4a72d354daeb"
+    },
+    {
+      "path": "installed-skills/box-desktop.md",
+      "bytes": 3097,
+      "sha256": "cb8f46a74a20f3e5f7eb6f75d14ad136238a745ab8e161b8d008be652ceb8281"
+    },
+    {
+      "path": "installed-skills/channels.md",
+      "bytes": 4234,
+      "sha256": "a7e55f7ca4fc6c3c1b732fa1b4dbb64dbe753a11d50c0cb882c27ac4409200a4"
+    },
+    {
+      "path": "installed-skills/code-changes.md",
+      "bytes": 12680,
+      "sha256": "6a8920824a985fb44e010db81407b701806564f9e3fd7b2b8ec17ed0a430c2c1"
+    },
+    {
+      "path": "installed-skills/no-connector-fallback.md",
+      "bytes": 6491,
+      "sha256": "38af6afe4e2ec720c5327b104aeb81386ed13493e9e44eac272278d9db8cbc89"
+    },
+    {
+      "path": "installed-skills/routines.md",
+      "bytes": 20429,
+      "sha256": "b30d8b3b4be5b2f429415e20a7ec6658faaf0cf473ecfa2c365271e4dd265f88"
+    },
+    {
+      "path": "sources/opt/sand/sand-host/host-main.cjs",
+      "bytes": 28534838,
+      "sha256": "1f57bcae01edd69eca81727d78f25f107ceeb4b52711dfa3f2207d3d95296b0a"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-exit-watch",
+      "bytes": 21916,
+      "sha256": "a8227a0872a91f9b17fc484569f79977f2ecdff0afaed999253b15a91f574102"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor.mjs",
+      "bytes": 59039,
+      "sha256": "144b7f3cf175f565aac96196120b8bb072c517e35f3bfc7af11e1c20256632a7"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-window-router.mjs",
+      "bytes": 4353,
+      "sha256": "57cad1434c697d71afd839515a5e10525c12c794ff62b20efd45eff427e709eb"
+    },
+    {
+      "path": "sources/usr/local/bin/start-desktop.sh",
+      "bytes": 11503,
+      "sha256": "384972a637456c52512819a1cd89f49b1cc2161aa5d11b2612a2dbca9b849701"
+    },
+    {
+      "path": "sources/usr/local/bin/start-window",
+      "bytes": 3488,
+      "sha256": "324b0708c668b0e4c278929407687a8c82fec12d65a606a1761b43cdf486d30e"
+    },
+    {
+      "path": "sources/workspace/agents/_shared/call.py",
+      "bytes": 2747,
+      "sha256": "3fac1c0e8a4154e089042d6ffe4247032a71dbc36805fb8e56f8a6cd049959c4"
+    },
+    {
+      "path": "sources/workspace/media-mcp/launch.sh",
+      "bytes": 773,
+      "sha256": "d2c72ccc7fb6a55faddd1596516ba483302a7097ccb5e4d3ec72eb5a027f518f"
+    },
+    {
+      "path": "运行机制调查.md",
+      "bytes": 10869,
+      "sha256": "970d2dadfcf3d0bfe83329ee7e524be00091964e504bcbb9da940fe2f203ad96"
+    }
+  ],
+  "redactions": {
+    "date": "2026-10-12",
+    "count": 2,
+    "report": "SECRET_SCAN.md",
+    "preserves_source_line_numbers": true
+  }
+}

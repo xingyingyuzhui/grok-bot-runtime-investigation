@@ -1,0 +1,524 @@
+704273: // src/host/extensions/transcript/session-runtime.ts
+704274: var import_node_path159 = require("node:path");
+704275: init_errors();
+704276: var NO_STORED_IDS2 = /* @__PURE__ */ new Set();
+704277: function readActivationGap(db, shippedThroughId) {
+704278:   return shippedThroughId == null ? db.getTranscriptEntries() : db.getTranscriptEntriesAfter(shippedThroughId);
+704279: }
+704280: var AgentGoneError = class extends SandDomainError {
+704281:   name = "AgentGoneError";
+704282:   constructor(agentId) {
+704283:     super(`Bot ${agentId} no longer exists`);
+704284:   }
+704285: };
+704286: function isAgentAbsent(error42) {
+704287:   return error42 instanceof AgentGoneError || chainCarriesMarker(error42, "isAgentMissing");
+704288: }
+704289: var SessionRuntime = class {
+704290:   constructor(tm, windowedActivationDefer) {
+704291:     this.tm = tm;
+704292:     this.windowedActivationDefer = windowedActivationDefer;
+704293:   }
+704294:   tm;
+704295:   windowedActivationDefer;
+704296:   activeSession;
+704297:   loaded = false;
+704298:   windowFocusedAtMsBySurface = /* @__PURE__ */ new Map();
+704299:   inMemoryTranscriptAgentId = null;
+704300:   liveSessions = /* @__PURE__ */ new Map();
+704301:   pendingSessionOpens = /* @__PURE__ */ new Map();
+704302:   deletedAgentIds = /* @__PURE__ */ new Set();
+704303:   windowedActivationTail = Promise.resolve();
+704304:   windowedActivationAbort = null;
+704305:   pendingActivationAgentId = null;
+704306:   activationPinCounts = /* @__PURE__ */ new Map();
+704307:   deferredRetirementSessions = /* @__PURE__ */ new Set();
+704308:   storedIdsByAgentAtDuplicate = /* @__PURE__ */ new Map();
+704309:   pendingLoad = null;
+704310:   deferSessionRetirementWhileActivating(session) {
+704311:     if (!this.activationPinCounts.has(session)) return false;
+704312:     this.deferredRetirementSessions.add(session);
+704313:     return true;
+704314:   }
+704315:   pinSessionActivation(session) {
+704316:     this.activationPinCounts.set(session, (this.activationPinCounts.get(session) ?? 0) + 1);
+704317:     let isReleased = false;
+704318:     return {
+704319:       [Symbol.dispose]: () => {
+704320:         if (isReleased) return;
+704321:         isReleased = true;
+704322:         const remaining = (this.activationPinCounts.get(session) ?? 1) - 1;
+704323:         if (remaining === 0) {
+704324:           this.activationPinCounts.delete(session);
+704325:           if (this.deferredRetirementSessions.delete(session)) {
+704326:             void this.tm.runLifecycle.retireSession(session);
+704327:           }
+704328:         } else {
+704329:           this.activationPinCounts.set(session, remaining);
+704330:         }
+704331:       }
+704332:     };
+704333:   }
+704334:   async settledOpen(pending) {
+704335:     if (pending == null) return void 0;
+704336:     const [settled] = await Promise.allSettled([pending]);
+704337:     return settled.status === "fulfilled" ? settled.value : void 0;
+704338:   }
+704339:   invalidateDeferredActivation() {
+704340:     this.windowedActivationAbort?.abort();
+704341:     this.windowedActivationAbort = null;
+704342:     this.pendingActivationAgentId = null;
+704343:   }
+704344:   clearPendingActivationClaim(owner) {
+704345:     if (this.windowedActivationAbort === owner) this.pendingActivationAgentId = null;
+704346:   }
+704347:   getActiveAgentDir() {
+704348:     const session = this.activeSession;
+704349:     return session == null ? void 0 : (0, import_node_path159.dirname)(session.dbPath);
+704350:   }
+704351:   ensureLoaded() {
+704352:     return this.pendingLoad ??= this.loadActiveTranscript().finally(() => {
+704353:       this.pendingLoad = null;
+704354:     });
+704355:   }
+704356:   async loadActiveTranscript() {
+704357:     const session = await this.restoreSession();
+704358:     if (session == null) {
+704359:       if (!this.loaded) {
+704360:         this.loaded = true;
+704361:         this.tm.roster.emit({ type: "cleared" });
+704362:       }
+704363:       return [];
+704364:     }
+704365:     if (!this.loaded) {
+704366:       const entries = await this.tm.sessionStore.getTranscriptEntries(session);
+704367:       if (this.loaded) return getTranscript();
+704368:       this.setActiveTranscript(session.id, entries);
+704369:       this.loaded = true;
+704370:       this.tm.roster.emit({ type: "snapshot", activeAgentId: session.id, entries });
+704371:       return entries;
+704372:     }
+704373:     return getTranscript();
+704374:   }
+704375:   getEntries() {
+704376:     return getTranscript();
+704377:   }
+704378:   appendEntry(rawEntry, options2) {
+704379:     const entry = withTimestampMs(rawEntry);
+704380:     const session = this.activeSession;
+704381:     const outcome = session?.db.appendTranscriptEntry(entry) ?? "failed";
+704382:     if (session == null || outcome !== "inserted") {
+704383:       this.tm.hostLog(
+704384:         `[sand] transcript append ${outcome} for ${session?.id ?? "none"} entry ${entry.id}`,
+704385:         "warn"
+704386:       );
+704387:       if (outcome === "duplicate" && session != null) this.recordStoredIdsAtDuplicate(session);
+704388:       return { outcome, entry };
+704389:     }
+704390:     appendEntry(entry);
+704391:     if (options2?.deferEmit !== true) this.tm.roster.emit({ type: "appended", entry });
+704392:     if ((entry.kind === "send-message" || entry.kind === "message" || entry.kind === "user-attachment") && entryRaisesUserActivitySignal(entry)) {
+704393:       this.markActiveSessionArrival(session, {
+704394:         incrementsUnread: entryRaisesUnreadSignal(entry)
+704395:       });
+704396:     }
+704397:     return { outcome, entry };
+704398:   }
+704399:   markActiveSessionArrival(session, options2 = {}) {
+704400:     const now = Date.now();
+704401:     this.tm.sessionStore.markSessionActivity(session, {
+704402:       at: now,
+704403:       ...options2
+704404:     });
+704405:     if (this.isWindowFocused) {
+704406:       this.tm.sessionStore.markSessionViewedNow(session, now, {
+704407:         preserveManualUnread: true
+704408:       });
+704409:     } else {
+704410:       void this.tm.roster.emitAgentUpdate(session.id);
+704411:     }
+704412:   }
+704413:   get isWindowFocused() {
+704414:     return this.windowFocusedAtMsBySurface.size > 0;
+704415:   }
+704416:   async setWindowFocused(isFocused, surface = SAND_CLIENT_SURFACE_DESKTOP) {
+704417:     const wasFocused = this.isWindowFocused;
+704418:     if (isFocused) this.windowFocusedAtMsBySurface.set(surface, Date.now());
+704419:     else this.windowFocusedAtMsBySurface.delete(surface);
+704420:     if (!isFocused || wasFocused) return;
+704421:     const active = this.activeSession;
+704422:     if (active == null) return;
+704423:     const unread = active.db.getUnreadState();
+704424:     if (unread.isManuallyUnread || unread.lastUnreadActivityAt <= unread.lastViewedAt) {
+704425:       return;
+704426:     }
+704427:     await this.tm.sessionStore.markSessionViewed(active, Date.now(), {
+704428:       preserveManualUnread: true
+704429:     });
+704430:     void this.tm.roster.emitAgentUpdate(active.id);
+704431:   }
+704432:   setActiveTranscript(agentId, entries) {
+704433:     setTranscript(entries, this.storedIdsAtLastDuplicate(agentId));
+704434:     this.inMemoryTranscriptAgentId = agentId;
+704435:   }
+704436:   storedIdsAtLastDuplicate(agentId) {
+704437:     return this.storedIdsByAgentAtDuplicate.get(agentId) ?? NO_STORED_IDS2;
+704438:   }
+704439:   recordStoredIdsAtDuplicate(session) {
+704440:     if (this.deletedAgentIds.has(session.id)) return;
+704441:     const storedIds = session.db.getTranscriptEntryIds();
+704442:     this.storedIdsByAgentAtDuplicate.set(session.id, storedIds);
+704443:     if (this.inMemoryTranscriptAgentId === session.id) setTranscriptStoredIds(storedIds);
+704444:   }
+704445:   forgetStoredIdsAtDuplicate(agentId) {
+704446:     this.storedIdsByAgentAtDuplicate.delete(agentId);
+704447:   }
+704448:   mirrorActiveTranscript(session) {
+704449:     setTranscriptSource(
+704450:       () => session.db.getTranscriptEntries(),
+704451:       this.storedIdsAtLastDuplicate(session.id)
+704452:     );
+704453:     this.inMemoryTranscriptAgentId = session.id;
+704454:   }
+704455:   clearActiveTranscript(agentId) {
+704456:     clearTranscript();
+704457:     this.inMemoryTranscriptAgentId = agentId;
+704458:   }
+704459:   getActiveAgentId() {
+704460:     return this.activeSession?.id ?? null;
+704461:   }
+704462:   getAnnouncedActiveAgentId() {
+704463:     return this.pendingActivationAgentId ?? this.getActiveAgentId();
+704464:   }
+704465:   getWindowFocusedAtMs() {
+704466:     return this.isWindowFocused ? Math.max(...this.windowFocusedAtMsBySurface.values()) : null;
+704467:   }
+704468:   noteDesktopContact() {
+704469:     if (!this.windowFocusedAtMsBySurface.has(SAND_CLIENT_SURFACE_DESKTOP)) return;
+704470:     this.windowFocusedAtMsBySurface.set(SAND_CLIENT_SURFACE_DESKTOP, Date.now());
+704471:   }
+704472:   async switchAgent(agentId) {
+704473:     const current2 = this.activeSession;
+704474:     if (current2?.id === agentId) {
+704475:       await this.reannounceAfterRedirect(agentId);
+704476:       return getTranscript();
+704477:     }
+704478:     const previousAgentId = this.announcedAgentId();
+704479:     this.invalidateDeferredActivation();
+704480:     const { session } = await this.activateSession(agentId, current2, Date.now(), "full");
+704481:     const entries = getTranscript();
+704482:     this.tm.roster.emit({ type: "snapshot", activeAgentId: session.id, entries });
+704483:     await this.announceActivation({ agentId: session.id, previousAgentId });
+704484:     return entries;
+704485:   }
+704486:   announceRemoteActivation(agentId) {
+704487:     const previousAgentId = this.announcedAgentId();
+704488:     this.invalidateDeferredActivation();
+704489:     this.pendingActivationAgentId = agentId;
+704490:     if (previousAgentId === agentId) return Promise.resolve();
+704491:     const at3 = Date.now();
+704492:     this.markSessionLeftBehind(this.activeSession, at3);
+704493:     this.tm.sessionStore.markAgentViewed(agentId, at3);
+704494:     return this.announceActivation({ agentId, previousAgentId });
+704495:   }
+704496:   announcedAgentId() {
+704497:     return this.getAnnouncedActiveAgentId() ?? void 0;
+704498:   }
+704499:   async reannounceAfterRedirect(agentId) {
+704500:     const previousAgentId = this.announcedAgentId();
+704501:     this.invalidateDeferredActivation();
+704502:     if (previousAgentId === void 0 || previousAgentId === agentId) return;
+704503:     await this.announceActivation({ agentId, previousAgentId });
+704504:   }
+704505:   async activateSession(agentId, current2, viewedAt, mirror2, deferred) {
+704506:     var _stack = [];
+704507:     try {
+704508:       let nextSession = this.resolveLiveSession(agentId) ?? await this.openSessionOnce(agentId);
+704509:       const _activationPin = __using(_stack, this.pinSessionActivation(nextSession));
+704510:       if (deferred?.isSuperseded() === true) return void 0;
+704511:       this.markSessionLeftBehind(current2, viewedAt);
+704512:       await this.tm.sessionStore.markSessionViewed(nextSession, viewedAt);
+704513:       if (deferred?.isSuperseded() === true) return void 0;
+704514:       while (this.isSessionStale(nextSession)) {
+704515:         await this.forgetSettledOpen(agentId, nextSession);
+704516:         nextSession = this.resolveLiveSession(agentId) ?? await this.openSessionOnce(agentId);
+704517:         if (deferred?.isSuperseded() === true) return void 0;
+704518:         await this.tm.sessionStore.markSessionViewed(nextSession, viewedAt);
+704519:         if (deferred?.isSuperseded() === true) return void 0;
+704520:       }
+704521:       const unread = nextSession.db.getUnreadState();
+704522:       if (unread.isManuallyUnread || unread.lastUnreadActivityAt > unread.lastViewedAt) {
+704523:         this.tm.sessionStore.markSessionViewedNow(nextSession);
+704524:       }
+704525:       const gap = deferred == null ? [] : readActivationGap(nextSession.db, deferred.shippedThroughId);
+704526:       if (mirror2 === "full") {
+704527:         this.setActiveTranscript(nextSession.id, nextSession.db.getTranscriptEntries());
+704528:       } else {
+704529:         this.mirrorActiveTranscript(nextSession);
+704530:       }
+704531:       this.loaded = true;
+704532:       await this.replaceSession(nextSession);
+704533:       return { session: nextSession, gap };
+704534:     } catch (_2) {
+704535:       var _error = _2, _hasError = true;
+704536:     } finally {
+704537:       __callDispose(_stack, _error, _hasError);
+704538:     }
+704539:   }
+704540:   isSessionStale(session) {
+704541:     return this.tm.runLifecycle.isSessionRetiring(session) || !session.db.isOpen;
+704542:   }
+704543:   resolveLiveSession(agentId) {
+704544:     const live = this.liveSessions.get(agentId);
+704545:     if (live == null) return void 0;
+704546:     if (!this.isSessionStale(live)) return live;
+704547:     void this.tm.runLifecycle.retireSession(live);
+704548:     return void 0;
+704549:   }
+704550:   markSessionLeftBehind(current2, at3) {
+704551:     if (current2 == null || !this.isWindowFocused) return;
+704552:     this.tm.sessionStore.markSessionViewedNow(current2, at3, { preserveManualUnread: true });
+704553:   }
+704554:   announceActivation(roles) {
+704555:     const flushed = this.tm.roster.emitAgentUpdate(roles.agentId);
+704556:     if (roles.previousAgentId != null && roles.previousAgentId !== roles.agentId) {
+704557:       void this.tm.roster.emitAgentUpdate(roles.previousAgentId);
+704558:     }
+704559:     return flushed;
+704560:   }
+704561:   async openAgentWindowed(agentId, limit2) {
+704562:     return this.openAgentBounded(
+704563:       agentId,
+704564:       (db) => db.getTranscriptWindow({ limit: limit2 }),
+704565:       () => this.getAgentTranscriptWindow(agentId, { limit: limit2 })
+704566:     );
+704567:   }
+704568:   async openAgentTail(agentId, query2) {
+704569:     return this.openAgentBounded(
+704570:       agentId,
+704571:       (db) => db.getTranscriptTail(query2),
+704572:       () => this.getAgentTranscriptTail(agentId, query2)
+704573:     );
+704574:   }
+704575:   async openAgentBounded(agentId, readLive, readCold) {
+704576:     const live = this.resolveLiveSession(agentId);
+704577:     if (this.activeSession?.id === agentId && live !== void 0) {
+704578:       const reply3 = readLive(live.db);
+704579:       await this.reannounceAfterRedirect(agentId);
+704580:       return reply3;
+704581:     }
+704582:     const current2 = this.activeSession;
+704583:     const previousAgentId = this.announcedAgentId();
+704584:     if (live !== void 0) {
+704585:       this.invalidateDeferredActivation();
+704586:       const reply3 = readLive(live.db);
+704587:       const activated = await this.activateSession(agentId, current2, Date.now(), "deferred", {
+704588:         isSuperseded: () => this.tm.disposed,
+704589:         shippedThroughId: reply3.entries.at(-1)?.id
+704590:       });
+704591:       if (activated === void 0) return reply3;
+704592:       this.emitActivationGap(activated.gap);
+704593:       await this.announceActivation({ agentId, previousAgentId });
+704594:       return reply3;
+704595:     }
+704596:     const reply2 = readCold();
+704597:     const openedAt = Date.now();
+704598:     this.markSessionLeftBehind(current2, openedAt);
+704599:     this.tm.sessionStore.markAgentViewed(agentId, openedAt);
+704600:     const outgoingRowShipped = this.announceActivation({ agentId, previousAgentId });
+704601:     this.scheduleWindowedActivation(
+704602:       agentId,
+704603:       reply2.entries.at(-1)?.id,
+704604:       openedAt,
+704605:       outgoingRowShipped
+704606:     );
+704607:     return reply2;
+704608:   }
+704609:   scheduleWindowedActivation(agentId, shippedThroughId, openedAt, outgoingRowShipped) {
+704610:     this.invalidateDeferredActivation();
+704611:     const abort = new AbortController();
+704612:     this.windowedActivationAbort = abort;
+704613:     this.pendingActivationAgentId = agentId;
+704614:     const { signal } = abort;
+704615:     const isSuperseded = () => signal.aborted || this.tm.disposed;
+704616:     this.windowedActivationTail = this.windowedActivationTail.then(async () => {
+704617:       await this.windowedActivationDefer.settled();
+704618:       await outgoingRowShipped;
+704619:       if (isSuperseded()) {
+704620:         this.clearPendingActivationClaim(abort);
+704621:         return;
+704622:       }
+704623:       const current2 = this.activeSession;
+704624:       const activated = await this.activateSession(agentId, current2, openedAt, "deferred", {
+704625:         isSuperseded,
+704626:         shippedThroughId
+704627:       });
+704628:       this.clearPendingActivationClaim(abort);
+704629:       if (activated === void 0) return;
+704630:       this.emitActivationGap(activated.gap);
+704631:       await this.announceActivation({ agentId, previousAgentId: current2?.id });
+704632:     }).catch((error42) => {
+704633:       this.clearPendingActivationClaim(abort);
+704634:       this.tm.hostLog(
+704635:         `[sand] windowed background activation failed for ${agentId}: ${errorLogTag(error42)}`,
+704636:         "error"
+704637:       );
+704638:     });
+704639:   }
+704640:   emitActivationGap(gap) {
+704641:     for (const entry of gap) {
+704642:       this.tm.roster.emit({ type: "appended", entry });
+704643:     }
+704644:   }
+704645:   getAgentTranscriptWindow(agentId, query2) {
+704646:     return this.resolveLiveSession(agentId)?.db.getTranscriptWindow(query2) ?? this.tm.sessionStore.readAgentTranscriptWindow(agentId, query2);
+704647:   }
+704648:   getAgentTranscriptTail(agentId, query2) {
+704649:     return this.resolveLiveSession(agentId)?.db.getTranscriptTail(query2) ?? this.tm.sessionStore.readAgentTranscriptTail(agentId, query2);
+704650:   }
+704651:   getAgentThread(agentId, rootId) {
+704652:     return this.resolveLiveSession(agentId)?.db.getThread(rootId) ?? this.tm.sessionStore.readAgentThread(agentId, rootId);
+704653:   }
+704654:   async ensureActionTarget(agentId) {
+704655:     if (agentId == null || this.activeSession?.id === agentId) return;
+704656:     await this.tm.switchAgent(agentId);
+704657:   }
+704658:   async getAgentTranscript(agentId) {
+704659:     if (this.activeSession?.id === agentId && this.inMemoryTranscriptAgentId === agentId) {
+704660:       return getTranscript();
+704661:     }
+704662:     return this.tm.sessionStore.getAgentTranscriptEntries(agentId);
+704663:   }
+704664:   getAgentTranscriptPage(agentId, query2) {
+704665:     return this.resolveLiveSession(agentId)?.db.getTranscriptPage(query2) ?? this.tm.sessionStore.readAgentTranscriptPage(agentId, query2);
+704666:   }
+704667:   async leaseBackgroundSession(agentId) {
+704668:     if (this.isAgentGone(agentId)) throw new AgentGoneError(agentId);
+704669:     let session = this.resolveLiveSession(agentId) ?? await this.openSessionOnce(agentId);
+704670:     while (this.isSessionStale(session)) {
+704671:       if (this.isAgentGone(agentId)) throw new AgentGoneError(agentId);
+704672:       await this.forgetSettledOpen(agentId, session);
+704673:       session = this.resolveLiveSession(agentId) ?? await this.openSessionOnce(agentId);
+704674:     }
+704675:     const pin = this.pinSessionActivation(session);
+704676:     return { session, [Symbol.dispose]: pin[Symbol.dispose] };
+704677:   }
+704678:   async forgetSettledOpen(agentId, stale) {
+704679:     const pending = this.pendingSessionOpens.get(agentId);
+704680:     if (pending == null || await this.settledOpen(pending) !== stale) return;
+704681:     if (this.pendingSessionOpens.get(agentId) === pending) {
+704682:       this.pendingSessionOpens.delete(agentId);
+704683:     }
+704684:   }
+704685:   openSessionOnce(agentId) {
+704686:     const pending = this.pendingSessionOpens.get(agentId);
+704687:     if (pending != null) return pending;
+704688:     const open11 = this.tm.sessionStore.openSession(agentId).catch((error42) => {
+704689:       if (this.pendingSessionOpens.get(agentId) === open11) {
+704690:         this.pendingSessionOpens.delete(agentId);
+704691:       }
+704692:       throw error42;
+704693:     });
+704694:     this.pendingSessionOpens.set(agentId, open11);
+704695:     return open11;
+704696:   }
+704697:   async restoreSession() {
+704698:     if (this.activeSession != null) return this.activeSession;
+704699:     const agents = await this.tm.sessionStore.listAgents();
+704700:     const recordIds = await this.tm.sessionStore.listAgentRecordIds();
+704701:     const persistedId = this.tm.sessionStore.readActiveAgentId();
+704702:     const isPersistedRestorable = persistedId != null && (agents.some((a) => a.id === persistedId) || recordIds.includes(persistedId));
+704703:     const ranked = [
+704704:       ...isPersistedRestorable ? [persistedId] : [],
+704705:       ...agents.map((a) => a.id),
+704706:       ...recordIds
+704707:     ];
+704708:     const orderedIds = [...new Set(ranked)];
+704709:     for (const id of orderedIds) {
+704710:       if (this.activeSession != null) return this.activeSession;
+704711:       try {
+704712:         return await this.activateUnlessSuperseded(await this.openSessionOnce(id));
+704713:       } catch (error42) {
+704714:         this.tm.hostLog(
+704715:           `[sand] skipping unopenable agent ${id} on boot: ${errorLogTag(error42)}`,
+704716:           "error"
+704717:         );
+704718:       }
+704719:     }
+704720:     return this.activeSession ?? null;
+704721:   }
+704722:   async ensureSession() {
+704723:     const restored = await this.restoreSession() ?? this.activeSession;
+704724:     if (restored != null) return restored;
+704725:     const fallback3 = await this.tm.sessionStore.createFallbackSession();
+704726:     const active = await this.activateUnlessSuperseded(fallback3);
+704727:     if (active.id !== fallback3.id) {
+704728:       await this.tm.deleteAgents([fallback3.id]).catch((error42) => {
+704729:         this.tm.hostLog(
+704730:           `[sand] superseded fallback ${fallback3.id} left on disk: ${errorLogTag(error42)}`,
+704731:           "error"
+704732:         );
+704733:       });
+704734:     }
+704735:     return active;
+704736:   }
+704737:   async activateUnlessSuperseded(session) {
+704738:     if (this.activeSession == null) {
+704739:       await this.tm.sessionStore.seedSessionActivityFromDbMtime(session);
+704740:     }
+704741:     const active = this.activeSession;
+704742:     if (active != null) {
+704743:       await this.tm.runLifecycle.retireSession(session);
+704744:       return active;
+704745:     }
+704746:     this.tm.sessionStore.markSessionViewedNow(session);
+704747:     this.setActiveSession(session);
+704748:     this.tm.runLifecycle.watchActiveSession(session);
+704749:     return session;
+704750:   }
+704751:   clearActiveSession() {
+704752:     if (this.activeSession != null) this.tm.roster.invalidateActiveOutline();
+704753:     this.activeSession = void 0;
+704754:     this.tm.sessionStore.writeActiveAgentId(null);
+704755:   }
+704756:   setActiveSession(session) {
+704757:     const previous = this.activeSession;
+704758:     if (previous != null && previous.id !== session.id) {
+704759:       void this.tm.automationRuntime.enqueueAutomationLifecycleMutation({
+704760:         agentId: previous.id,
+704761:         mutation: () => {
+704762:           if (this.deletedAgentIds.has(previous.id) || !this.tm.sessionStore.agentExists(previous.id)) {
+704763:             this.tm.automationRuntime.lastKnownAutomations.delete(previous.id);
+704764:             return;
+704765:           }
+704766:           const current2 = previous.automations.listDefinitions();
+704767:           this.tm.automationRuntime.recordInactiveAutomationChanges({
+704768:             agentId: previous.id,
+704769:             before: current2,
+704770:             after: current2,
+704771:             source: "agent"
+704772:           });
+704773:         }
+704774:       });
+704775:     }
+704776:     if (previous?.id !== session.id) {
+704777:       this.tm.roster.invalidateActiveOutline();
+704778:     }
+704779:     this.activeSession = session;
+704780:     this.liveSessions.set(session.id, session);
+704781:     this.tm.sessionStore.writeActiveAgentId(session.id);
+704782:   }
+704783:   isAgentGone(agentId) {
+704784:     return this.deletedAgentIds.has(agentId) || !this.tm.sessionStore.agentExists(agentId);
+704785:   }
+704786:   isServerHostedAgent(agentId) {
+704787:     return readSandProfileHarness(getSandProfilePath(this.tm.sessionStore.getAgentDir(agentId))) === "temporal";
+704788:   }
+704789:   async replaceSession(session) {
+704790:     const previous = this.activeSession;
+704791:     this.setActiveSession(session);
+704792:     this.tm.runLifecycle.watchActiveSession(session);
+704793:     await this.tm.runLifecycle.retireSession(previous);
+704794:   }
+704795: };
+704796: 

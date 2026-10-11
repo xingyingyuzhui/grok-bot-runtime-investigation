@@ -1,0 +1,49 @@
+706761: // src/host/extensions/transcript/todos/agent-todos.ts
+706762: async function readAgentTodos(session, structure = session.agentStore.getConversationStateStructure()) {
+706763:   const ctx = createContext();
+706764:   const blobStore = session.agentStore.getBlobStore();
+706765:   const todos = [];
+706766:   for (const blobId of structure.todos) {
+706767:     const blob = await blobStore.getBlob(ctx, blobId);
+706768:     if (blob == null) continue;
+706769:     let item;
+706770:     try {
+706771:       item = TodoItem.fromBinary(blob);
+706772:     } catch (error42) {
+706773:       reportFallback("transcript_manager", error42);
+706774:       continue;
+706775:     }
+706776:     const todo = sandAgentTodoFromItem(item);
+706777:     if (todo != null) todos.push(todo);
+706778:   }
+706779:   return todos;
+706780: }
+706781: var AgentTodosRuntime = class {
+706782:   constructor(host) {
+706783:     this.host = host;
+706784:   }
+706785:   host;
+706786:   subscribe(listener) {
+706787:     this.host.roster.emitter.on("todos", listener);
+706788:     return () => {
+706789:       this.host.roster.emitter.off("todos", listener);
+706790:     };
+706791:   }
+706792:   async get(agentId) {
+706793:     try {
+706794:       var _stack = [];
+706795:       try {
+706796:         const lease = __using(_stack, await this.host.sessions.leaseBackgroundSession(agentId));
+706797:         return await readAgentTodos(lease.session);
+706798:       } catch (_2) {
+706799:         var _error = _2, _hasError = true;
+706800:       } finally {
+706801:         __callDispose(_stack, _error, _hasError);
+706802:       }
+706803:     } catch (error42) {
+706804:       if (error42 instanceof AgentGoneError) return [];
+706805:       throw error42;
+706806:     }
+706807:   }
+706808: };
+706809: 

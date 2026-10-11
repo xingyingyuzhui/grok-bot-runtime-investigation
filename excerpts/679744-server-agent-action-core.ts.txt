@@ -1,0 +1,1005 @@
+679744: // src/shared/node/server-transcript/server-agent-action-core.ts
+679745: init_esm2();
+679746: init_dist5();
+679747: init_unknown_record();
+679748: init_proto();
+679749: var SERVER_AGENT_ACTION_TIMEOUT_MS = 2e4;
+679750: var approvalResolutionProto = (resolution) => ({
+679751:   approved: GrokBotAutoReviewApprovalResolution.APPROVED,
+679752:   denied: GrokBotAutoReviewApprovalResolution.DENIED,
+679753:   always: GrokBotAutoReviewApprovalResolution.ALWAYS
+679754: })[resolution];
+679755: function handBackTriggerProto(trigger2) {
+679756:   switch (trigger2) {
+679757:     case "viewer-closed":
+679758:       return GrokBotBoxHandBackTrigger.VIEWER_CLOSED;
+679759:     case "dismissed":
+679760:       return GrokBotBoxHandBackTrigger.DISMISSED;
+679761:     case "button":
+679762:     case void 0:
+679763:       return GrokBotBoxHandBackTrigger.BUTTON;
+679764:   }
+679765: }
+679766: function clientSurfaceProto(source) {
+679767:   switch (source) {
+679768:     case "desktop":
+679769:       return GrokBotClientSurface.DESKTOP;
+679770:     case "mobile":
+679771:       return GrokBotClientSurface.MOBILE;
+679772:     case void 0:
+679773:       return GrokBotClientSurface.UNSPECIFIED;
+679774:   }
+679775: }
+679776: function messageInitiatorProto(initiator) {
+679777:   switch (initiator) {
+679778:     case "user":
+679779:       return GrokBotUserMessageInitiator.USER;
+679780:     case "template_import":
+679781:       return GrokBotUserMessageInitiator.TEMPLATE_IMPORT;
+679782:     case "template_share":
+679783:       return GrokBotUserMessageInitiator.TEMPLATE_SHARE;
+679784:     case "card_action":
+679785:       return GrokBotUserMessageInitiator.CARD_ACTION;
+679786:     case "plugin_setup":
+679787:       return GrokBotUserMessageInitiator.PLUGIN_SETUP;
+679788:     case "teach_recording":
+679789:       return GrokBotUserMessageInitiator.TEACH_RECORDING;
+679790:     case void 0:
+679791:       return GrokBotUserMessageInitiator.UNSPECIFIED;
+679792:   }
+679793: }
+679794: function mobileSendSourceProto(sendSource) {
+679795:   switch (sendSource) {
+679796:     case "chat":
+679797:       return GrokBotSendSource.CHAT;
+679798:     case "push":
+679799:       return GrokBotSendSource.PUSH;
+679800:     case "app_intent":
+679801:       return GrokBotSendSource.APP_INTENT;
+679802:     case "action_button_dictation":
+679803:       return GrokBotSendSource.ACTION_BUTTON_DICTATION;
+679804:     case "unknown":
+679805:     case void 0:
+679806:       return GrokBotSendSource.UNSPECIFIED;
+679807:   }
+679808: }
+679809: var feedbackActionProto = (action) => ({
+679810:   up: GrokBotFeedbackAction.UP,
+679811:   down: GrokBotFeedbackAction.DOWN,
+679812:   submit: GrokBotFeedbackAction.SUBMIT,
+679813:   revert: GrokBotFeedbackAction.REVERT
+679814: })[action];
+679815: function acceptanceLookupOf(args) {
+679816:   const {
+679817:     response
+679818:   } = args;
+679819:   let status;
+679820:   switch (response.status) {
+679821:     case GrokBotSendStatus.NOT_FOUND:
+679822:       status = "not-found";
+679823:       break;
+679824:     case GrokBotSendStatus.ACCEPTED:
+679825:       status = "accepted";
+679826:       break;
+679827:     case GrokBotSendStatus.REJECTED:
+679828:       status = "rejected";
+679829:       break;
+679830:     case GrokBotSendStatus.PENDING:
+679831:       status = "pending";
+679832:       break;
+679833:     case GrokBotSendStatus.UNKNOWN_DURABILITY:
+679834:     case GrokBotSendStatus.UNSPECIFIED:
+679835:       status = "unknown-durability";
+679836:       break;
+679837:     default: {
+679838:       const _exhaustive = response.status;
+679839:       status = "unknown-durability";
+679840:       break;
+679841:     }
+679842:   }
+679843:   if (status === "not-found" || status === "unknown-durability") return {
+679844:     outcome: status
+679845:   };
+679846:   const serverSideIdentity = {
+679847:     accountSlot: HOST_ACCOUNT_SLOT,
+679848:     clientNonce: args.clientNonce,
+679849:     agentId: args.agentId,
+679850:     inputDigest: ""
+679851:   };
+679852:   return {
+679853:     outcome: "found",
+679854:     record: {
+679855:       ...serverSideIdentity,
+679856:       status,
+679857:       acceptedAtMs: response.acceptedAtMs === void 0 ? 0 : Number(response.acceptedAtMs),
+679858:       echoEntryId: response.echoEntryId ?? null,
+679859:       rejectionCode: status === "rejected" ? response.rejectionCode ?? null : null
+679860:     }
+679861:   };
+679862: }
+679863: function refused(refusal3, method) {
+679864:   return {
+679865:     status: "refused",
+679866:     failureCode: refusal3 != null && refusal3.failureCode.length > 0 ? refusal3.failureCode : null,
+679867:     message: refusal3 != null && refusal3.message.length > 0 ? refusal3.message : method
+679868:   };
+679869: }
+679870: function staleUserForm(method) {
+679871:   return {
+679872:     status: "refused",
+679873:     failureCode: SAND_USER_FORM_STALE,
+679874:     message: method
+679875:   };
+679876: }
+679877: var NOT_FOUND_STALE_CODES = {
+679878:   resolveAutoReviewApproval: SAND_AUTO_REVIEW_STALE,
+679879:   resolveConnectorGrant: SAND_CONNECTOR_GRANT_STALE,
+679880:   resolveVirtualCardApproval: SAND_VIRTUAL_CARD_STALE,
+679881:   beginSpendApproval: SAND_VIRTUAL_CARD_STALE,
+679882:   handBackForeverBox: SAND_BOX_HANDOFF_STALE,
+679883:   getBotTemplateVersion: SAND_BOT_TEMPLATE_NOT_FOUND
+679884: };
+679885: function secretSaveRefused(refusal3) {
+679886:   return {
+679887:     status: "refused",
+679888:     failureCode: SAND_SECRET_SAVE_REFUSED,
+679889:     message: refusal3 != null && refusal3.message.length > 0 ? refusal3.message : SAND_SECRET_SAVE_REFUSED_MESSAGE
+679890:   };
+679891: }
+679892: function unreachable2(args) {
+679893:   return {
+679894:     status: "unavailable",
+679895:     kind: args.kind,
+679896:     message: args.message
+679897:   };
+679898: }
+679899: function unreadableDelivery(delivery) {
+679900:   return {
+679901:     status: "refused",
+679902:     failureCode: null,
+679903:     message: `unknown-delivery:${delivery}`
+679904:   };
+679905: }
+679906: function isNonceDedupedSendReplayable(error42) {
+679907:   if (!(error42 instanceof ConnectError)) return true;
+679908:   return error42.code === Code.Unavailable && !error42.metadata.has("retry-after");
+679909: }
+679910: var connectorGrantResolutionProto = (resolution) => ({
+679911:   allowed: GrokBotConnectorGrantResolution.ALLOWED,
+679912:   skipped: GrokBotConnectorGrantResolution.SKIPPED,
+679913:   always_this_bot: GrokBotConnectorGrantResolution.ALWAYS_THIS_BOT,
+679914:   always_all_team_bots: GrokBotConnectorGrantResolution.ALWAYS_ALL_TEAM_BOTS
+679915: })[resolution];
+679916: function sessionIdField(sessionId) {
+679917:   return sessionId != null && sessionId.length > 0 ? {
+679918:     sessionId
+679919:   } : {};
+679920: }
+679921: var localToolPermissionResolutionProto = (resolution) => ({
+679922:   "allow-once": GrokBotLocalToolPermissionCardResolution.ALLOW_ONCE,
+679923:   deny: GrokBotLocalToolPermissionCardResolution.DENY,
+679924:   always: GrokBotLocalToolPermissionCardResolution.ALWAYS,
+679925:   never: GrokBotLocalToolPermissionCardResolution.NEVER
+679926: })[resolution];
+679927: function userFormClientPlatformProto(platform2) {
+679928:   switch (platform2) {
+679929:     case "desktop":
+679930:       return GrokBotUserFormClientPlatform.DESKTOP;
+679931:     case "ios":
+679932:       return GrokBotUserFormClientPlatform.IOS;
+679933:     case "android":
+679934:       return GrokBotUserFormClientPlatform.ANDROID;
+679935:     case void 0:
+679936:       return GrokBotUserFormClientPlatform.UNSPECIFIED;
+679937:   }
+679938: }
+679939: function userFormDismissModeProto(mode) {
+679940:   return mode === "dismissed" ? GrokBotUserFormDismissMode.DISMISSED : GrokBotUserFormDismissMode.ESCALATED;
+679941: }
+679942: function virtualCardResolutionProto(resolution) {
+679943:   return resolution === "approved" ? GrokBotVirtualCardResolution.APPROVED : GrokBotVirtualCardResolution.DENIED;
+679944: }
+679945: function credentialRequestResolutionProto(resolution) {
+679946:   return resolution === "approved" ? GrokBotCredentialRequestResolution.APPROVED : GrokBotCredentialRequestResolution.DENIED;
+679947: }
+679948: function virtualCardResultOf(response) {
+679949:   switch (response.outcome) {
+679950:     case GrokBotVirtualCardOutcome.APPROVED:
+679951:       if (response.spendRequestId == null) {
+679952:         return {
+679953:           status: "failed",
+679954:           message: response.message ?? i18n._(
+679955:             /*i18n*/
+679956:             {
+679957:               id: "gtUhhC",
+679958:               message: "The purchase could not be authorized"
+679959:             }
+679960:           )
+679961:         };
+679962:       }
+679963:       return {
+679964:         status: "approved",
+679965:         spendRequestId: response.spendRequestId,
+679966:         ...response.approvalUrl == null ? {} : {
+679967:           approvalUrl: response.approvalUrl
+679968:         }
+679969:       };
+679970:     case GrokBotVirtualCardOutcome.DENIED:
+679971:       return {
+679972:         status: "denied"
+679973:       };
+679974:     case GrokBotVirtualCardOutcome.NEEDS_AUTH:
+679975:       return {
+679976:         status: "needs_auth"
+679977:       };
+679978:     case GrokBotVirtualCardOutcome.NEEDS_PASSKEY:
+679979:       if (response.enrolledCredentialIds.length === 0) {
+679980:         return {
+679981:           status: "needs_enrollment"
+679982:         };
+679983:       }
+679984:       return {
+679985:         status: "needs_passkey",
+679986:         enrolledCredentialIds: response.enrolledCredentialIds
+679987:       };
+679988:     case GrokBotVirtualCardOutcome.FAILED:
+679989:     case GrokBotVirtualCardOutcome.UNSPECIFIED:
+679990:       return {
+679991:         status: "failed",
+679992:         message: response.message ?? i18n._(
+679993:           /*i18n*/
+679994:           {
+679995:             id: "gtUhhC",
+679996:             message: "The purchase could not be authorized"
+679997:           }
+679998:         )
+679999:       };
+680000:     default: {
+680001:       const _exhaustive = response.outcome;
+680002:       return {
+680003:         status: "failed",
+680004:         message: i18n._(
+680005:           /*i18n*/
+680006:           {
+680007:             id: "QqzfGy",
+680008:             message: "The server sent an answer this version of Grok Bot can't read. Update Grok Bot, then request a new card."
+680009:           }
+680010:         )
+680011:       };
+680012:     }
+680013:   }
+680014: }
+680015: function spendApprovalBeginResultOf(response) {
+680016:   if (response.challengeId.length > 0 && response.ceremonyToken.length > 0) {
+680017:     return {
+680018:       status: "challenge",
+680019:       ceremonyId: response.ceremonyId,
+680020:       challengeId: response.challengeId,
+680021:       ceremonyPath: response.ceremonyPath,
+680022:       ceremonyToken: response.ceremonyToken
+680023:     };
+680024:   }
+680025:   return {
+680026:     status: "not_required"
+680027:   };
+680028: }
+680029: function paymentMethodKindOf(kind) {
+680030:   switch (kind) {
+680031:     case GrokBotStripeLinkPaymentMethodKind.CARD:
+680032:       return "card";
+680033:     case GrokBotStripeLinkPaymentMethodKind.BANK_ACCOUNT:
+680034:       return "bank_account";
+680035:     default:
+680036:       return "other";
+680037:   }
+680038: }
+680039: function paymentMethodOf(method) {
+680040:   return {
+680041:     id: method.id,
+680042:     name: method.name,
+680043:     isDefault: method.isDefault,
+680044:     kind: paymentMethodKindOf(method.kind),
+680045:     ...method.brand == null ? {} : {
+680046:       brand: method.brand
+680047:     },
+680048:     ...method.last4 == null ? {} : {
+680049:       last4: method.last4
+680050:     },
+680051:     ...method.expMonth == null ? {} : {
+680052:       expMonth: method.expMonth
+680053:     },
+680054:     ...method.expYear == null ? {} : {
+680055:       expYear: method.expYear
+680056:     }
+680057:   };
+680058: }
+680059: function paymentMethodsResultOf(response) {
+680060:   switch (response.outcome) {
+680061:     case GrokBotStripeLinkPaymentMethodsOutcome.OK:
+680062:       return {
+680063:         status: "ok",
+680064:         paymentMethods: response.paymentMethods.map(paymentMethodOf),
+680065:         unavailableCount: response.unavailableCount
+680066:       };
+680067:     case GrokBotStripeLinkPaymentMethodsOutcome.NEEDS_AUTH:
+680068:       return {
+680069:         status: "needs_auth"
+680070:       };
+680071:     default:
+680072:       return {
+680073:         status: "unavailable"
+680074:       };
+680075:   }
+680076: }
+680077: var SEND_LENGTH_REFUSAL = /^(text|rich_text) exceeds the maximum length of \d+/;
+680078: var GROK_BOT_REFUSAL_HEADER = "x-grok-bot-refusal";
+680079: var GROK_BOT_BOX_HARNESS_REFUSAL = "box_harness";
+680080: var GROK_BOT_NEEDS_ENROLLMENT_REFUSAL = "needs_enrollment";
+680081: var GROK_BOT_PASSKEY_DISABLED_REFUSAL = "passkey_disabled";
+680082: var GROK_BOT_LOCAL_TOOL_PERMISSION_FALLBACK_HEADER = "x-grok-bot-local-tool-permission-fallback";
+680083: function debugDetailText(detail) {
+680084:   if (!isUnknownRecord(detail)) return void 0;
+680085:   const debug = detail.debug;
+680086:   if (!isUnknownRecord(debug)) return void 0;
+680087:   const details = debug.details;
+680088:   if (!isUnknownRecord(details)) return void 0;
+680089:   const described2 = details.detail;
+680090:   if (typeof described2 !== "string" || described2.length === 0) return void 0;
+680091:   return described2;
+680092: }
+680093: function describeConnectFailure(error42) {
+680094:   for (const detail of error42.details) {
+680095:     const described2 = debugDetailText(detail);
+680096:     if (described2 !== void 0) return described2;
+680097:   }
+680098:   return error42.rawMessage;
+680099: }
+680100: function classifyServerAgentActionError(error42, method) {
+680101:   if (method === "resolveLocalToolPermission" && error42 instanceof ConnectError && error42.code === Code.Unavailable && error42.metadata.get(GROK_BOT_LOCAL_TOOL_PERMISSION_FALLBACK_HEADER) === "gateway") {
+680102:     return {
+680103:       status: "unimplemented"
+680104:     };
+680105:   }
+680106:   if (error42 instanceof ConnectError && error42.code === Code.NotFound && error42.metadata.get(GROK_BOT_REFUSAL_HEADER) === GROK_BOT_BOX_HARNESS_REFUSAL) {
+680107:     return {
+680108:       status: "unimplemented",
+680109:       scope: "agent"
+680110:     };
+680111:   }
+680112:   const staleCode = method === void 0 ? void 0 : NOT_FOUND_STALE_CODES[method];
+680113:   if (staleCode !== void 0 && error42 instanceof ConnectError && error42.code === Code.NotFound) {
+680114:     return {
+680115:       status: "refused",
+680116:       failureCode: staleCode,
+680117:       message: describeConnectFailure(error42)
+680118:     };
+680119:   }
+680120:   if (method === "beginSpendApproval" && error42 instanceof ConnectError && error42.code === Code.FailedPrecondition && error42.metadata.get(GROK_BOT_REFUSAL_HEADER) === GROK_BOT_NEEDS_ENROLLMENT_REFUSAL) {
+680121:     return {
+680122:       status: "ok",
+680123:       value: {
+680124:         status: "needs_enrollment"
+680125:       }
+680126:     };
+680127:   }
+680128:   if (method === "beginSpendApproval" && error42 instanceof ConnectError && error42.code === Code.FailedPrecondition && error42.metadata.get(GROK_BOT_REFUSAL_HEADER) === GROK_BOT_PASSKEY_DISABLED_REFUSAL) {
+680129:     return {
+680130:       status: "ok",
+680131:       value: {
+680132:         status: "not_required"
+680133:       }
+680134:     };
+680135:   }
+680136:   if (method === "submitSecret" && error42 instanceof ConnectError && (error42.code === Code.InvalidArgument || error42.code === Code.FailedPrecondition)) {
+680137:     return secretSaveRefused({
+680138:       message: describeConnectFailure(error42)
+680139:     });
+680140:   }
+680141:   if (method === "sendPrompt" && error42 instanceof ConnectError && error42.code === Code.InvalidArgument && SEND_LENGTH_REFUSAL.test(describeConnectFailure(error42))) {
+680142:     return {
+680143:       status: "refused",
+680144:       failureCode: SEND_MESSAGE_TOO_LONG,
+680145:       message: describeConnectFailure(error42)
+680146:     };
+680147:   }
+680148:   if (!(error42 instanceof ConnectError)) {
+680149:     return unreachable2({
+680150:       kind: "network",
+680151:       message: error42 instanceof Error ? error42.message : String(error42)
+680152:     });
+680153:   }
+680154:   switch (error42.code) {
+680155:     case Code.Unimplemented:
+680156:       return {
+680157:         status: "unimplemented"
+680158:       };
+680159:     case Code.Unavailable:
+680160:     case Code.ResourceExhausted:
+680161:       return unreachable2({
+680162:         kind: "network",
+680163:         message: describeConnectFailure(error42)
+680164:       });
+680165:     case Code.DeadlineExceeded:
+680166:       return unreachable2({
+680167:         kind: "timeout",
+680168:         message: describeConnectFailure(error42)
+680169:       });
+680170:     case Code.Unauthenticated:
+680171:     case Code.PermissionDenied:
+680172:       return unreachable2({
+680173:         kind: "access_denied",
+680174:         message: describeConnectFailure(error42)
+680175:       });
+680176:     case Code.Internal:
+680177:     case Code.Unknown:
+680178:     case Code.DataLoss:
+680179:       return unreachable2({
+680180:         kind: "http_5xx",
+680181:         message: describeConnectFailure(error42)
+680182:       });
+680183:     default:
+680184:       return {
+680185:         status: "refused",
+680186:         failureCode: null,
+680187:         message: describeConnectFailure(error42)
+680188:       };
+680189:   }
+680190: }
+680191: async function perform(client, request5) {
+680192:   const callOptions = {
+680193:     timeoutMs: SERVER_AGENT_ACTION_TIMEOUT_MS
+680194:   };
+680195:   switch (request5.method) {
+680196:     case "sendPrompt": {
+680197:       const {
+680198:         args
+680199:       } = request5;
+680200:       const response = await client.sendGrokBotUserMessage({
+680201:         agentId: args.agentId,
+680202:         messageId: args.clientNonce,
+680203:         text: args.prompt,
+680204:         sentAtMs: BigInt(Date.now()),
+680205:         richText: args.richText,
+680206:         replyToId: args.replyToId,
+680207:         isFork: args.isFork === true,
+680208:         attachmentPaths: [...args.attachmentPaths ?? []],
+680209:         attachmentNames: [...args.attachmentNames ?? []],
+680210:         traceparent: args.traceparent,
+680211:         enterEpochMs: args.enterEpochMs === void 0 ? void 0 : BigInt(args.enterEpochMs),
+680212:         composedAtMs: args.composedAtMs === void 0 ? void 0 : BigInt(args.composedAtMs),
+680213:         source: clientSurfaceProto(args.source),
+680214:         ...sessionIdField(args.sessionId),
+680215:         ...args.machineId != null && args.machineId.length > 0 ? {
+680216:           machineId: args.machineId
+680217:         } : {},
+680218:         ...args.onePasswordAppInstalled === true ? {
+680219:           onePasswordAppInstalled: true
+680220:         } : {},
+680221:         ...args.mcpConfigJson === void 0 ? {} : {
+680222:           mcpConfigJson: args.mcpConfigJson
+680223:         },
+680224:         ...args.taskId === void 0 ? {} : {
+680225:           taskId: args.taskId
+680226:         },
+680227:         initiator: messageInitiatorProto(args.initiator),
+680228:         sendSource: mobileSendSourceProto(args.sendSource)
+680229:       }, callOptions);
+680230:       switch (response.delivery) {
+680231:         case GrokBotUserMessageDelivery.ACCEPTED_BOX:
+680232:         case GrokBotUserMessageDelivery.ACCEPTED_TEMPORAL:
+680233:         case GrokBotUserMessageDelivery.DUPLICATE:
+680234:           return {
+680235:             status: "ok",
+680236:             value: {
+680237:               accepted: true
+680238:             }
+680239:           };
+680240:         case GrokBotUserMessageDelivery.REFUSED:
+680241:           return refused(response.refusal, request5.method);
+680242:         case GrokBotUserMessageDelivery.UNSPECIFIED:
+680243:           return unreadableDelivery(response.delivery);
+680244:         default: {
+680245:           const _exhaustive = response.delivery;
+680246:           return unreadableDelivery(_exhaustive);
+680247:         }
+680248:       }
+680249:     }
+680250:     case "promptAcceptanceStatus": {
+680251:       const {
+680252:         args
+680253:       } = request5;
+680254:       const response = await client.getGrokBotSendStatus({
+680255:         agentId: args.agentId,
+680256:         messageId: args.clientNonce,
+680257:         ...sessionIdField(args.sessionId)
+680258:       }, callOptions);
+680259:       return {
+680260:         status: "ok",
+680261:         value: acceptanceLookupOf({
+680262:           ...args,
+680263:           response
+680264:         })
+680265:       };
+680266:     }
+680267:     case "interruptAgentRun": {
+680268:       const response = await client.interruptGrokBotAgentRun({
+680269:         agentId: request5.args.id,
+680270:         reason: "user_interrupt",
+680271:         ...request5.args.sessionId != null ? {
+680272:           sessionId: request5.args.sessionId
+680273:         } : {}
+680274:       }, callOptions);
+680275:       return {
+680276:         status: "ok",
+680277:         value: {
+680278:           hadActiveRun: response.hadActiveRun
+680279:         }
+680280:       };
+680281:     }
+680282:     case "startFreshConversation": {
+680283:       await client.startFreshGrokBotConversation({
+680284:         agentId: request5.args.id,
+680285:         ...request5.args.sessionId != null ? {
+680286:           sessionId: request5.args.sessionId
+680287:         } : {}
+680288:       }, callOptions);
+680289:       return {
+680290:         status: "ok",
+680291:         value: null
+680292:       };
+680293:     }
+680294:     case "rollBackConversation": {
+680295:       await client.rollBackGrokBotConversation({
+680296:         agentId: request5.args.id,
+680297:         ...request5.args.sessionId != null ? {
+680298:           sessionId: request5.args.sessionId
+680299:         } : {}
+680300:       }, callOptions);
+680301:       return {
+680302:         status: "ok",
+680303:         value: null
+680304:       };
+680305:     }
+680306:     case "respondToWidget": {
+680307:       const response = await client.respondGrokBotWidget({
+680308:         agentId: request5.args.agentId,
+680309:         entryId: request5.args.entryId,
+680310:         value: request5.args.value
+680311:       }, callOptions);
+680312:       if (response.refusal != null) {
+680313:         return refused(response.refusal, request5.method);
+680314:       }
+680315:       return {
+680316:         status: "ok",
+680317:         value: {
+680318:           accepted: response.accepted
+680319:         }
+680320:       };
+680321:     }
+680322:     case "submitSecret": {
+680323:       const response = await client.submitGrokBotSecret({
+680324:         agentId: request5.args.agentId,
+680325:         entryId: request5.args.entryId,
+680326:         value: request5.args.value,
+680327:         ...sessionIdField(request5.args.sessionId)
+680328:       }, callOptions);
+680329:       if (response.refusal != null) {
+680330:         return secretSaveRefused(response.refusal);
+680331:       }
+680332:       if (!response.accepted) {
+680333:         return secretSaveRefused(void 0);
+680334:       }
+680335:       return {
+680336:         status: "ok",
+680337:         value: null
+680338:       };
+680339:     }
+680340:     case "resolveCredentialRequest": {
+680341:       const response = await client.resolveGrokBotCredentialRequest({
+680342:         agentId: request5.args.agentId,
+680343:         entryId: request5.args.entryId,
+680344:         resolution: credentialRequestResolutionProto(request5.args.resolution),
+680345:         ...sessionIdField(request5.args.sessionId)
+680346:       }, callOptions);
+680347:       if (response.refusal != null) {
+680348:         return refused(response.refusal, request5.method);
+680349:       }
+680350:       if (!response.accepted) {
+680351:         return refused(void 0, request5.method);
+680352:       }
+680353:       return {
+680354:         status: "ok",
+680355:         value: null
+680356:       };
+680357:     }
+680358:     case "dismissWidget": {
+680359:       const response = await client.dismissGrokBotWidget({
+680360:         agentId: request5.args.agentId,
+680361:         entryId: request5.args.entryId
+680362:       }, callOptions);
+680363:       if (response.refusal != null) {
+680364:         return refused(response.refusal, request5.method);
+680365:       }
+680366:       return {
+680367:         status: "ok",
+680368:         value: {
+680369:           accepted: response.accepted
+680370:         }
+680371:       };
+680372:     }
+680373:     case "submitUserForm": {
+680374:       const response = await client.submitGrokBotUserForm({
+680375:         agentId: request5.args.agentId,
+680376:         entryId: request5.args.entryId,
+680377:         values: {
+680378:           ...request5.args.values
+680379:         },
+680380:         platform: userFormClientPlatformProto(request5.args.platform),
+680381:         saveToVault: request5.args.saveToVault === true
+680382:       }, callOptions);
+680383:       if (response.refusal != null) {
+680384:         return refused(response.refusal, request5.method);
+680385:       }
+680386:       if (!response.accepted) {
+680387:         return staleUserForm(request5.method);
+680388:       }
+680389:       return {
+680390:         status: "ok",
+680391:         value: null
+680392:       };
+680393:     }
+680394:     case "dismissUserForm": {
+680395:       const response = await client.dismissGrokBotUserForm({
+680396:         agentId: request5.args.agentId,
+680397:         entryId: request5.args.entryId,
+680398:         mode: userFormDismissModeProto(request5.args.mode),
+680399:         platform: userFormClientPlatformProto(request5.args.platform)
+680400:       }, callOptions);
+680401:       if (response.refusal != null) {
+680402:         return refused(response.refusal, request5.method);
+680403:       }
+680404:       if (!response.accepted) {
+680405:         return staleUserForm(request5.method);
+680406:       }
+680407:       return {
+680408:         status: "ok",
+680409:         value: null
+680410:       };
+680411:     }
+680412:     case "reactToMessage": {
+680413:       const response = await client.reactToGrokBotMessage({
+680414:         agentId: request5.args.agentId,
+680415:         entryId: request5.args.entryId,
+680416:         emoji: request5.args.emoji
+680417:       }, callOptions);
+680418:       if (response.refusal != null) {
+680419:         return refused(response.refusal, request5.method);
+680420:       }
+680421:       return {
+680422:         status: "ok",
+680423:         value: null
+680424:       };
+680425:     }
+680426:     case "resolveLocalToolPermission": {
+680427:       const {
+680428:         args
+680429:       } = request5;
+680430:       const response = await client.resolveGrokBotLocalToolPermission({
+680431:         agentId: args.agentId,
+680432:         entryId: args.entryId,
+680433:         requestId: args.requestId,
+680434:         resolution: localToolPermissionResolutionProto(args.resolution),
+680435:         ...sessionIdField(args.sessionId)
+680436:       }, callOptions);
+680437:       if (response.refusal != null) {
+680438:         return refused(response.refusal, request5.method);
+680439:       }
+680440:       return {
+680441:         status: "ok",
+680442:         value: null
+680443:       };
+680444:     }
+680445:     case "resolveConnectorGrant": {
+680446:       const {
+680447:         args
+680448:       } = request5;
+680449:       const response = await client.resolveGrokBotConnectorGrant({
+680450:         agentId: args.agentId,
+680451:         requestId: args.requestId,
+680452:         resolution: connectorGrantResolutionProto(args.resolution),
+680453:         entryId: args.entryId,
+680454:         ...sessionIdField(args.sessionId)
+680455:       }, callOptions);
+680456:       if (response.refusal != null) {
+680457:         return refused(response.refusal, request5.method);
+680458:       }
+680459:       return {
+680460:         status: "ok",
+680461:         value: null
+680462:       };
+680463:     }
+680464:     case "resolveVirtualCardApproval": {
+680465:       const {
+680466:         args
+680467:       } = request5;
+680468:       const response = await client.resolveGrokBotVirtualCardApproval({
+680469:         agentId: args.agentId,
+680470:         entryId: args.entryId,
+680471:         requestId: args.requestId,
+680472:         resolution: virtualCardResolutionProto(args.resolution),
+680473:         ...args.paymentMethodId === void 0 ? {} : {
+680474:           paymentMethodId: args.paymentMethodId
+680475:         },
+680476:         ...args.attestation === void 0 ? {} : {
+680477:           attestation: {
+680478:             challengeId: args.attestation.challengeId
+680479:           }
+680480:         }
+680481:       }, callOptions);
+680482:       if (response.refusal != null) {
+680483:         return refused(response.refusal, request5.method);
+680484:       }
+680485:       return {
+680486:         status: "ok",
+680487:         value: virtualCardResultOf(response)
+680488:       };
+680489:     }
+680490:     case "beginSpendApproval": {
+680491:       const {
+680492:         args
+680493:       } = request5;
+680494:       const response = await client.beginGrokBotSpendApproval({
+680495:         agentId: args.agentId,
+680496:         requestId: args.requestId,
+680497:         ...args.paymentMethodId === void 0 ? {} : {
+680498:           paymentMethodId: args.paymentMethodId
+680499:         }
+680500:       }, callOptions);
+680501:       return {
+680502:         status: "ok",
+680503:         value: spendApprovalBeginResultOf(response)
+680504:       };
+680505:     }
+680506:     case "listVirtualCardPaymentMethods": {
+680507:       const response = await client.listGrokBotStripeLinkPaymentMethods({}, callOptions);
+680508:       return {
+680509:         status: "ok",
+680510:         value: paymentMethodsResultOf(response)
+680511:       };
+680512:     }
+680513:     case "resolveAutoReviewApproval": {
+680514:       const {
+680515:         args
+680516:       } = request5;
+680517:       await client.resolveGrokBotAutoReviewApproval({
+680518:         agentId: args.agentId,
+680519:         requestId: args.requestId,
+680520:         resolution: approvalResolutionProto(args.resolution),
+680521:         approvalPlatform: args.approvalPlatform ?? SAND_APPROVAL_PLATFORM_DESKTOP,
+680522:         approvedCommand: args.approvedCommand,
+680523:         ...sessionIdField(args.sessionId),
+680524:         meetingJoin: args.meetingJoin === void 0 ? void 0 : {
+680525:           acceptedConsent: args.meetingJoin.acceptedConsent === true,
+680526:           remember: {
+680527:             once: MeetingJoinAnswer_Remember.UNSPECIFIED,
+680528:             meeting: MeetingJoinAnswer_Remember.MEETING,
+680529:             all: MeetingJoinAnswer_Remember.ALL
+680530:           }[args.meetingJoin.remember ?? "once"],
+680531:           internalMeeting: args.meetingJoin.internalMeeting === true
+680532:         }
+680533:       }, callOptions);
+680534:       return {
+680535:         status: "ok",
+680536:         value: null
+680537:       };
+680538:     }
+680539:     case "handBackForeverBox": {
+680540:       await client.endGrokBotBoxHandoff({
+680541:         agentId: request5.args.id,
+680542:         requestId: request5.args.requestId,
+680543:         trigger: handBackTriggerProto(request5.args.trigger)
+680544:       }, callOptions);
+680545:       return {
+680546:         status: "ok",
+680547:         value: null
+680548:       };
+680549:     }
+680550:     case "setAgentUnread": {
+680551:       await client.setGrokBotAgentClientState({
+680552:         agentId: request5.args.id,
+680553:         ...request5.args.isUnread ? {
+680554:           markUnread: true
+680555:         } : {
+680556:           markRead: true
+680557:         }
+680558:       }, callOptions);
+680559:       return {
+680560:         status: "ok",
+680561:         value: null
+680562:       };
+680563:     }
+680564:     case "setAgentHiddenFromSidebar": {
+680565:       await client.setGrokBotAgentClientState({
+680566:         agentId: request5.args.id,
+680567:         hiddenFromSidebar: request5.args.isHidden
+680568:       }, callOptions);
+680569:       return {
+680570:         status: "ok",
+680571:         value: null
+680572:       };
+680573:     }
+680574:     case "setAgentNotifyOnUpdates": {
+680575:       await client.setGrokBotAgentClientState({
+680576:         agentId: request5.args.id,
+680577:         notifyOnUpdatesEnabled: request5.args.isEnabled
+680578:       }, callOptions);
+680579:       return {
+680580:         status: "ok",
+680581:         value: null
+680582:       };
+680583:     }
+680584:     case "setAgentDraftingDisabled": {
+680585:       await client.setGrokBotAgentDraftingDisabled({
+680586:         id: request5.args.id,
+680587:         disabled: request5.args.isDisabled
+680588:       }, callOptions);
+680589:       return {
+680590:         status: "ok",
+680591:         value: null
+680592:       };
+680593:     }
+680594:     case "voteFeedback": {
+680595:       const {
+680596:         args
+680597:       } = request5;
+680598:       const response = await client.voteGrokBotFeedback({
+680599:         agentId: args.agentId,
+680600:         entryId: args.entryId,
+680601:         action: feedbackActionProto(args.action),
+680602:         categories: [...args.categories ?? []],
+680603:         comment: args.comment
+680604:       }, callOptions);
+680605:       if (response.refusal != null) {
+680606:         return refused(response.refusal, request5.method);
+680607:       }
+680608:       return {
+680609:         status: "ok",
+680610:         value: null
+680611:       };
+680612:     }
+680613:     case "sendDraft": {
+680614:       const response = await client.sendGrokBotDraft({
+680615:         agentId: request5.args.agentId,
+680616:         entryId: request5.args.entryId,
+680617:         ...draftProto(request5.args.draft),
+680618:         ...sessionIdField(request5.args.sessionId),
+680619:         ...request5.args.shownSignatureHtml === void 0 ? {} : {
+680620:           shownSignatureHtml: request5.args.shownSignatureHtml
+680621:         }
+680622:       }, callOptions);
+680623:       if (response.refusal != null) {
+680624:         return refused(response.refusal, request5.method);
+680625:       }
+680626:       return {
+680627:         status: "ok",
+680628:         value: {
+680629:           accepted: response.accepted
+680630:         }
+680631:       };
+680632:     }
+680633:     case "discardDraft": {
+680634:       const response = await client.discardGrokBotDraft({
+680635:         agentId: request5.args.agentId,
+680636:         entryId: request5.args.entryId,
+680637:         ...sessionIdField(request5.args.sessionId)
+680638:       }, callOptions);
+680639:       if (response.refusal != null) {
+680640:         return refused(response.refusal, request5.method);
+680641:       }
+680642:       return {
+680643:         status: "ok",
+680644:         value: {
+680645:           accepted: response.accepted
+680646:         }
+680647:       };
+680648:     }
+680649:     case "getSubagents": {
+680650:       const response = await client.listGrokBotSubagents({
+680651:         agentId: request5.args.id
+680652:       }, callOptions);
+680653:       return {
+680654:         status: "ok",
+680655:         value: response.subagents.map((subagent) => ({
+680656:           subagentId: subagent.subagentId,
+680657:           subagentType: subagent.subagentType,
+680658:           title: subagent.title,
+680659:           status: "running",
+680660:           startedAtMs: Number(subagent.startedAtMs)
+680661:         }))
+680662:       };
+680663:     }
+680664:   }
+680665: }
+680666: function draftProto(draft) {
+680667:   if (draft.type === "meeting-chat-draft") {
+680668:     return {
+680669:       draft: {
+680670:         case: "meetingChat",
+680671:         value: {
+680672:           meetingId: draft.draft.meetingId,
+680673:           ...draft.draft.meetingTitle === void 0 ? {} : {
+680674:             meetingTitle: draft.draft.meetingTitle
+680675:           },
+680676:           body: draft.draft.body,
+680677:           ...draft.markInternal === true ? {
+680678:             markInternal: true
+680679:           } : {}
+680680:         }
+680681:       }
+680682:     };
+680683:   }
+680684:   if (draft.type === "email-draft") {
+680685:     return {
+680686:       draft: {
+680687:         case: "email",
+680688:         value: {
+680689:           from: draft.draft.from,
+680690:           to: [...draft.draft.to],
+680691:           cc: [...draft.draft.cc ?? []],
+680692:           subject: draft.draft.subject,
+680693:           body: draft.draft.body
+680694:         }
+680695:       }
+680696:     };
+680697:   }
+680698:   return {
+680699:     draft: {
+680700:       case: "slack",
+680701:       value: {
+680702:         ...draft.draft.workspace === void 0 ? {} : {
+680703:           workspace: draft.draft.workspace
+680704:         },
+680705:         target: draft.draft.target,
+680706:         ...draft.draft.thread === void 0 ? {} : {
+680707:           thread: draft.draft.thread
+680708:         },
+680709:         body: draft.draft.body
+680710:       }
+680711:     }
+680712:   };
+680713: }
+680714: function createServerAgentActionCore(client) {
+680715:   return async (request5) => {
+680716:     try {
+680717:       return await perform(client, request5);
+680718:     } catch (error42) {
+680719:       if (request5.method !== "sendPrompt" || !isNonceDedupedSendReplayable(error42)) {
+680720:         return classifyServerAgentActionError(error42, request5.method);
+680721:       }
+680722:       const firstAttempt = classifyServerAgentActionError(error42);
+680723:       try {
+680724:         const {
+680725:           agentId,
+680726:           clientNonce
+680727:         } = request5.args;
+680728:         const probe = await client.getGrokBotSendStatus({
+680729:           agentId,
+680730:           messageId: clientNonce,
+680731:           ...sessionIdField(request5.args.sessionId)
+680732:         }, {
+680733:           timeoutMs: SERVER_AGENT_ACTION_TIMEOUT_MS
+680734:         });
+680735:         const lookup3 = acceptanceLookupOf({
+680736:           agentId,
+680737:           clientNonce,
+680738:           response: probe
+680739:         });
+680740:         if (lookup3.outcome !== "not-found") return firstAttempt;
+680741:         return await perform(client, request5);
+680742:       } catch (retryError) {
+680743:         return classifyServerAgentActionError(retryError);
+680744:       }
+680745:     }
+680746:   };
+680747: }
+680748: 
