@@ -1,0 +1,39 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+523378: function userMessageReminders(options2) {
+523379:   return [
+523380:     ...options2.unfinishedTasks ? [UNFINISHED_TASKS_REMINDER] : [],
+523381:     ...options2.reply && userReplyReminderEnabled() ? [REPLY_REMINDER] : []
+523382:   ];
+523383: }
+523384: function userMessageReminderBodies(options2) {
+523385:   return userMessageReminders(options2).map((reminder) => reminder.body);
+523386: }
+523387: function appendUserMessageReminders(text3, options2) {
+523388:   const reminders = userMessageReminders(options2);
+523389:   if (reminders.length === 0) return text3;
+523390:   const block = systemReminderBlock(reminders);
+523391:   return text3.length > 0 ? `${text3}
+523392: 
+523393: ${block}` : block;
+
+524578:       profileUpdateForTurn?.text ?? null,
+524579:       instructionsUpdateForTurn,
+524580:       isAgentStartedPrompt(trimmedPrompt, options2.hidden === true) && host.gates.peerWakeApprovalReminder() && allowsSystemReminder(host, "peerWakeApproval") ? PEER_WAKE_APPROVAL_REMINDER : null
+524581:     ];
+524582:     const isReminderOutsideUserQuery = host.gates.remindersOutsideUserQuery();
+524583:     const isPrewarmSharingLiveTurnPrefix = options2.prewarm === true && isReminderOutsideUserQuery;
+524584:     const reminderOptions = {
+524585:       unfinishedTasks: args.appendUnfinishedTasksReminder && allowsSystemReminder(host, "unfinishedTasks"),
+524586:       reply: options2.appendReplyReminder === true && (options2.hidden !== true || isPrewarmSharingLiveTurnPrefix) && allowsSystemReminder(host, "reply")
+524587:     };
+524588:     const turnSystemReminder = isReminderOutsideUserQuery ? [
+524589:       ...turnNotes.flatMap((note) => note == null ? [] : [unwrapSystemReminder(note)]),
+524590:       ...userMessageReminderBodies(reminderOptions)
+524591:     ].filter((block) => block.length > 0).join("\n\n") : "";
+524592:     const promptWithTurnNotes = isReminderOutsideUserQuery ? promptWithAttachments : appendUserMessageReminders(
+524593:       turnNotes.reduce(
+524594:         (body, note) => attachNote(body, note, options2.isSilenceAllowed === true),
+524595:         promptWithAttachments
+524596:       ),
+

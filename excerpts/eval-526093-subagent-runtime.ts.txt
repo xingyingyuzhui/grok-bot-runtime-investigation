@@ -1,0 +1,97 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+526093: function createSubagentRuntime(host) {
+526094:   const subagentSessions = /* @__PURE__ */ new Map();
+526095:   const backgroundSubagentRuns = /* @__PURE__ */ new Map();
+526096:   const subagentMeta = /* @__PURE__ */ new Map();
+526097:   const computerUseSessions = /* @__PURE__ */ new Map();
+526098:   const subagentRegistry = /* @__PURE__ */ new Map();
+526099:   const pendingSubagentSteers = /* @__PURE__ */ new Map();
+526100:   const abortingSubagents = /* @__PURE__ */ new Set();
+
+526211:   async function settleBackgroundSubagentTurn(subagentAgentId, outcome) {
+526212:     const pendingSteer = pendingSubagentSteers.get(subagentAgentId);
+526213:     const runner = subagentSessions.get(subagentAgentId);
+526214:     const meta = subagentMeta.get(subagentAgentId);
+526215:     if (pendingSteer != null && runner != null && !abortingSubagents.has(subagentAgentId)) {
+526216:       pendingSubagentSteers.delete(subagentAgentId);
+526217:       return startBackgroundSubagentTurn(
+526218:         subagentAgentId,
+526219:         () => runSandAgentTurn(
+526220:           runner,
+526221:           formatSteerPrompt(pendingSteer),
+526222:           meta == null ? {} : subagentSteerRunOptions(meta),
+526223:           meta?.connectorScope ?? NO_CONNECTORS
+526224:         )
+526225:       );
+526226:     }
+526227:     pendingSubagentSteers.delete(subagentAgentId);
+526228:     const cleanup = abortCleanups.get(subagentAgentId);
+526229:     if (cleanup !== void 0) {
+526230:       await cleanup;
+526231:       abortCleanups.delete(subagentAgentId);
+526232:     }
+526233:     const aborted2 = abortingSubagents.delete(subagentAgentId);
+526234:     const record4 = subagentRegistry.get(subagentAgentId);
+526235:     if (record4 != null) {
+526236:       record4.status = (() => {
+526237:         if (aborted2 || outcome.status === "aborted") return "aborted";
+526238:         if (outcome.status === "completed") return "done";
+526239:         return "error";
+526240:       })();
+526241:       logSubagentLifecycle("settled", subagentAgentId, record4.status);
+526242:     }
+
+526389:   function steerSubagent(subagentAgentId, message) {
+526390:     const runner = subagentSessions.get(subagentAgentId);
+526391:     if (runner == null || !backgroundSubagentRuns.has(subagentAgentId) || subagentRegistry.get(subagentAgentId)?.status !== "running") {
+526392:       return "not-running";
+526393:     }
+526394:     if (abortingSubagents.has(subagentAgentId)) return "not-running";
+526395:     const meta = subagentMeta.get(subagentAgentId);
+526396:     if (meta !== void 0) {
+526397:       subagentMeta.set(subagentAgentId, {
+526398:         ...meta,
+526399:         connectorScope: narrowestConnectorScope([
+526400:           meta.connectorScope,
+526401:           host.connectorScopeForTurn()
+526402:         ])
+526403:       });
+526404:     }
+526405:     pendingSubagentSteers.set(subagentAgentId, message);
+526406:     runner.interrupt("Steering message from the parent agent.");
+526407:     return "ok";
+526408:   }
+526409:   function abortSubagent(params) {
+526410:     const { subagentAgentId, reason = "Stopped by the parent agent." } = params;
+526411:     const runner = subagentSessions.get(subagentAgentId);
+526412:     if (runner == null || !backgroundSubagentRuns.has(subagentAgentId) || subagentRegistry.get(subagentAgentId)?.status !== "running") {
+526413:       return "not-running";
+526414:     }
+526415:     if (abortingSubagents.has(subagentAgentId)) return "ok";
+526416:     abortingSubagents.add(subagentAgentId);
+526417:     pendingSubagentSteers.delete(subagentAgentId);
+526418:     const meta = subagentMeta.get(subagentAgentId);
+526419:     if (meta != null) {
+526420:       host.onPendingWakeDisarmed?.({
+526421:         parentAgentId: meta.parentAgentId,
+526422:         kind: "subagent",
+526423:         workId: subagentAgentId
+526424:       });
+526425:     }
+526426:     const cleanup = (async () => {
+526427:       try {
+526428:         if (runner.abortBackgroundWork !== void 0) {
+526429:           await runner.abortBackgroundWork(reason);
+526430:         } else {
+526431:           runner.interrupt(reason);
+526432:         }
+526433:       } catch (error3) {
+526434:         process.stderr.write(
+526435:           `sand.subagent.abort_cleanup_failed subagent_agent_id=${subagentAgentId} error_class=${errorLogTag(error3)}
+526436: `
+526437:         );
+526438:       }
+526439:     })();
+526440:     abortCleanups.set(subagentAgentId, cleanup);
+

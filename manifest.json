@@ -11,13 +11,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 1847,
-      "sha256": "340dc11d4bb1d0926dc929af26638d0e4a79be659d5122c13b44d920bd3c0e86"
+      "bytes": 2114,
+      "sha256": "f476f738322c2a32d71061e61b1aed4aa4a4df18d4135e1df6f7a296f6d2e71d"
     },
     {
       "path": "SECRET_SCAN.md",
-      "bytes": 1037,
-      "sha256": "07cc696f5eaa7b6960186506888b4e074e750efce9cd91300267fa0b503a47fe"
+      "bytes": 1393,
+      "sha256": "bfac918e85ae0c02f2914ecc0ad9b46244b739fcf387b1b2d2bbd7555fe3840a"
+    },
+    {
+      "path": "SSH补查.md",
+      "bytes": 4324,
+      "sha256": "f037b6f2e843ebe4eab64129b7d23dca65c988a6e9e864d0201838e727290cff"
     },
     {
       "path": "evidence-index.json",
@@ -150,6 +155,31 @@
       "sha256": "239a655d7319ad052ad50d22c23e66e3ee01b5ca75c7eacbac46e28049a46639"
     },
     {
+      "path": "excerpts/eval-504520-steer-prompt.txt",
+      "bytes": 352,
+      "sha256": "7340352ef0b6907b6d0e34b11bdfa3fb5160d7ce199a0c955edc4e3982a8282b"
+    },
+    {
+      "path": "excerpts/eval-523378-user-message-reminders.txt",
+      "bytes": 2202,
+      "sha256": "7887ca569c3a91bbd92699c64c09e7d774cdd3010bfd393e3778b3506e370968"
+    },
+    {
+      "path": "excerpts/eval-526093-subagent-runtime.ts.txt",
+      "bytes": 4532,
+      "sha256": "ef8fb166cf08f46a3f194a49d785d057264c760b9a6953755991f193059f1f04"
+    },
+    {
+      "path": "excerpts/eval-564631-turn-steer.ts.txt",
+      "bytes": 3523,
+      "sha256": "1aa1cf60ffb4fbbc7e90944cdac2c4c88f01e919f0f254db74defec195e5b8e9"
+    },
+    {
+      "path": "excerpts/eval-566183-turn-run-shell.ts.txt",
+      "bytes": 5446,
+      "sha256": "c24b84209f1edee2455e686e0a6a1eaf9f9f9b954544919427c0bd44b059f196"
+    },
+    {
       "path": "excerpts/index.tsv",
       "bytes": 2393,
       "sha256": "65a8b99c57f6c0c73e5d28b0f63770d525be1bb96445f2e3d8dd4a72d354daeb"
@@ -180,9 +210,109 @@
       "sha256": "b30d8b3b4be5b2f429415e20a7ec6658faaf0cf473ecfa2c365271e4dd265f88"
     },
     {
+      "path": "sources/exec-daemon/162.index.js",
+      "bytes": 11201,
+      "sha256": "9cae35fc32b60fd7dba54e4f535b0901c0516a58965d056a9a2ef28c4994ff7e"
+    },
+    {
+      "path": "sources/exec-daemon/181.index.js",
+      "bytes": 114255,
+      "sha256": "299ae6e91d57d21a9aa73c03841a73c4a445d9aa238428e53a9e6f5cdcb7787c"
+    },
+    {
+      "path": "sources/exec-daemon/250.index.js",
+      "bytes": 81684,
+      "sha256": "52b9e9c936cbf196a2d745489c8b00cd15d367c9ddf89c067612185b76002de3"
+    },
+    {
+      "path": "sources/exec-daemon/250.index.js.LICENSE.txt",
+      "bytes": 90,
+      "sha256": "9147d44d83cc2ac8d2467b4587564cadc61ea5b26447dcfe7946e99209150493"
+    },
+    {
+      "path": "sources/exec-daemon/252.index.js",
+      "bytes": 1161,
+      "sha256": "56529bc5c1f03adf898f826c5e897563612957f258c40da4a08d9d6bc34d7b5a"
+    },
+    {
+      "path": "sources/exec-daemon/284.index.js",
+      "bytes": 12537,
+      "sha256": "dba45dd06b3008dc62e7426c2f49abe9b62372007799db7b843071b057e5ece7"
+    },
+    {
+      "path": "sources/exec-daemon/295.index.js",
+      "bytes": 72136,
+      "sha256": "fb2aec5ac4859a7a97bf41a4363c0c99c942b4f818fcf46165fc626810e827e8"
+    },
+    {
+      "path": "sources/exec-daemon/407.index.js",
+      "bytes": 1167,
+      "sha256": "02a4d58392a55ae1788cf602ae108bb581f970fde6a79c4a60cc1fff08275c45"
+    },
+    {
+      "path": "sources/exec-daemon/511.index.js",
+      "bytes": 1166,
+      "sha256": "b7401c2f946c3ea53af982aac5d45e5e9f0c90ab058d40baeb858b0274166e20"
+    },
+    {
+      "path": "sources/exec-daemon/690.index.js",
+      "bytes": 34684,
+      "sha256": "658e576b0028ffd5214deb4bb57258ab49ef7c632a229545c887e65d4d335f28"
+    },
+    {
+      "path": "sources/exec-daemon/731.index.js",
+      "bytes": 18430,
+      "sha256": "eda8a1214cfe6f332d761f36f2a8b80a201bb49d89ac3b24f98bbcd50dd50ee8"
+    },
+    {
+      "path": "sources/exec-daemon/831.index.js",
+      "bytes": 22222,
+      "sha256": "255d2489dcdffeeaec302f9489f8826cf90788c3c666740f13b7b03f22c1e421"
+    },
+    {
+      "path": "sources/exec-daemon/953.index.js",
+      "bytes": 519,
+      "sha256": "078c3b0e57569f71b73740032099c9b92bf241af3298d5a98f8808ac738a6368"
+    },
+    {
+      "path": "sources/exec-daemon/980.index.js",
+      "bytes": 654,
+      "sha256": "bf1a8a82919b20ac43f0d59e7494a16691193ed6753404ecec385ac529b1e368"
+    },
+    {
+      "path": "sources/exec-daemon/a22718674812ee697cf3.js",
+      "bytes": 2821,
+      "sha256": "ba885e166fb261506969fab7703b665d96998e6f995c8c4e8172c696f58574d6"
+    },
+    {
+      "path": "sources/exec-daemon/exec-daemon",
+      "bytes": 327,
+      "sha256": "62a09a7c138b8da9ea00d886e5b96dc7425a2497abd1c5012367199260db903e"
+    },
+    {
+      "path": "sources/exec-daemon/index.js",
+      "bytes": 5472216,
+      "sha256": "e3437a26f1f6d5b0fe99bb8bbcb384c067a77e39b4f331c42d1a5e0561387555"
+    },
+    {
+      "path": "sources/exec-daemon/index.js.LICENSE.txt",
+      "bytes": 2155,
+      "sha256": "09a8e685074a15506d9a6ef4fac08aa7d722f78a045b1cedf042e9c7d38ae369"
+    },
+    {
+      "path": "sources/exec-daemon/package.json",
+      "bytes": 140,
+      "sha256": "c9013b2986988102bf5ff53f003f1ef91b873bb886820ebbd97698964ff2b7fa"
+    },
+    {
       "path": "sources/opt/sand/sand-host/host-main.cjs",
       "bytes": 28534838,
       "sha256": "1f57bcae01edd69eca81727d78f25f107ceeb4b52711dfa3f2207d3d95296b0a"
+    },
+    {
+      "path": "sources/opt/sand/sand-host/sand-eval-runner.cjs",
+      "bytes": 21512341,
+      "sha256": "4dc61781787129aa6509ae7c7f68e1693028a09df11c88d0b52f90269821007e"
     },
     {
       "path": "sources/usr/local/bin/sand-exit-watch",
@@ -221,8 +351,8 @@
     },
     {
       "path": "运行机制调查.md",
-      "bytes": 10869,
-      "sha256": "970d2dadfcf3d0bfe83329ee7e524be00091964e504bcbb9da940fe2f203ad96"
+      "bytes": 11198,
+      "sha256": "fea8970b348bf471ae7258628d43778926f2c508203338f0f2136640d1c6a075"
     }
   ],
   "redactions": {
@@ -230,5 +360,6 @@
     "count": 2,
     "report": "SECRET_SCAN.md",
     "preserves_source_line_numbers": true
-  }
+  },
+  "followup_collection_date": "2026-10-12"
 }

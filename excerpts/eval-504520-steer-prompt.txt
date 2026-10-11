@@ -1,0 +1,9 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+504520: function formatSteerPrompt(message) {
+504521:   return [
+504522:     "[Steering message from the parent agent that dispatched you]",
+504523:     message.trim(),
+504524:     "Take this into account and continue your task from where you are. Do not start over."
+504525:   ].join("\n\n");
+

@@ -1,0 +1,86 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+564631: // ../packages/grok-bot-harness/src/runner/steer/turn-steer.ts
+564632: function buildSteerUserMessage(prompt, options2, isRenamedSpelling) {
+564633:   return new UserMessage({
+564634:     text: options2.hidden === true ? `${hiddenPromptMarker(isRenamedSpelling)}${prompt}` : prompt,
+564635:     messageId: `${SAND_OFF_RECORD_MESSAGE_ID_PREFIX}${crypto.randomUUID()}`
+564636:   });
+564637: }
+564638: var SandSteerInbox = class {
+564639:   constructor(isRenamedSpelling) {
+564640:     this.isRenamedSpelling = isRenamedSpelling;
+564641:   }
+564642:   isRenamedSpelling;
+564643:   pending = [];
+564644:   poppedAwaitingTurn;
+564645:   admittedListeners = /* @__PURE__ */ new Set();
+564646:   accepting = false;
+564647:   beginRun() {
+564648:     this.accepting = true;
+564649:   }
+564650:   enqueue(prompt, options2) {
+564651:     if (!this.accepting) return { kind: "no-live-run" };
+564652:     const delivered = new Promise((settle) => {
+564653:       this.pending.push({
+564654:         action: new ConversationAction({
+564655:           action: {
+564656:             case: "userMessageAction",
+564657:             value: new UserMessageAction({
+564658:               userMessage: buildSteerUserMessage(prompt, options2, this.isRenamedSpelling())
+564659:             })
+564660:           }
+564661:         }),
+564662:         settle
+564663:       });
+564664:     });
+564665:     for (const listener of [...this.admittedListeners]) listener();
+564666:     return { kind: "steered", deliveredAtStepBoundary: delivered };
+564667:   }
+564668:   receiver(privacyMode) {
+564669:     const toolSignal = {
+564670:       hasPendingUserInjections: () => this.pending.length > 0,
+564671:       onUserInjectionAdmitted: (listener) => {
+564672:         this.admittedListeners.add(listener);
+564673:         return () => void this.admittedListeners.delete(listener);
+564674:       }
+564675:     };
+564676:     return {
+564677:       peek: (_ctx) => {
+564678:         this.settlePoppedAsDelivered();
+564679:         const head = this.pending[0];
+564680:         return Promise.resolve(
+564681:           head === void 0 ? void 0 : toRedactedConversationAction(head.action, privacyMode)
+564682:         );
+564683:       },
+564684:       pop: (_ctx) => {
+564685:         this.settlePoppedAsDelivered();
+564686:         const head = this.pending.shift();
+564687:         if (head === void 0) return Promise.resolve(void 0);
+564688:         this.poppedAwaitingTurn = head;
+564689:         return Promise.resolve(toRedactedConversationAction(head.action, privacyMode));
+564690:       },
+564691:       peekIsClaimedInjection: () => this.pending[0] !== void 0,
+564692:       failConsumedInjectionDelivery: () => {
+564693:         const popped = this.poppedAwaitingTurn;
+564694:         if (popped === void 0) return false;
+564695:         this.poppedAwaitingTurn = void 0;
+564696:         this.pending.unshift(popped);
+564697:         return true;
+564698:       },
+564699:       getContextInjectionToolSignal: () => toolSignal
+564700:     };
+564701:   }
+564702:   endRun() {
+564703:     this.settlePoppedAsDelivered();
+564704:     this.accepting = false;
+564705:     for (const steer of this.pending.splice(0)) steer.settle(false);
+564706:   }
+564707:   settlePoppedAsDelivered() {
+564708:     const popped = this.poppedAwaitingTurn;
+564709:     if (popped === void 0) return;
+564710:     this.poppedAwaitingTurn = void 0;
+564711:     popped.settle(true);
+564712:   }
+564713: };
+

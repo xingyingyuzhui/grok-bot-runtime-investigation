@@ -1,0 +1,105 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+566183: function createTurnRunShell(host) {
+566184:   const resolvedModelTracker = createSandResolvedModelTracker();
+566185:   const errorFreeSteps = createErrorFreeStepTracker({
+566186:     ctx: host.ctx,
+566187:     harness: host.metricsHarness,
+566188:     clock: host.metricsClock,
+566189:     isSubagentRunner: host.isSubagentRunner,
+566190:     inheritedRequestSource: host.inheritedRequestSource,
+566191:     userMessagesAccepted: host.metricsUserMessagesAccepted
+566192:   });
+566193:   let pausingForUpgrade = false;
+566194:   let cancelActiveRun = null;
+566195:   let activeRunDispatched = false;
+566196:   let activeRunRecoveryShaped = false;
+566197:   let unfinishedTasksReminderPending = false;
+566198:   let markActiveRunSupersededByUser = null;
+566199:   let markActiveRunInterrupted = null;
+566200:   let clearActiveRunStopRequest = null;
+566201:   const steerInbox = new SandSteerInbox(() => host.gates.renamedPromptMarkers());
+566202:   let activeTurnOriginatingFlow;
+566203:   let activeTurnOwnerRelay = false;
+566204:   let activeTurnApprovalExpiryPolicy = "ttl";
+566205:   function steer(prompt, options2 = {}) {
+566206:     if (host.steerReach.kind === "unsupported-harness") return { kind: "unsupported-harness" };
+566207:     return steerInbox.enqueue(prompt, options2);
+566208:   }
+566209:   function interrupt(reason, supersede) {
+566210:     const hadActiveRun = cancelActiveRun != null;
+566211:     if (hadActiveRun && !activeRunDispatched && supersede != null && (!supersede.carriesRecovery || !activeRunRecoveryShaped)) {
+566212:       return false;
+566213:     }
+566214:     if (hadActiveRun) {
+566215:       if (activeRunDispatched && supersede != null) {
+566216:         unfinishedTasksReminderPending = true;
+566217:       }
+566218:       host.setActiveRunInterrupted(true);
+566219:       markActiveRunInterrupted?.();
+566220:       clearActiveRunStopRequest?.();
+566221:       if (supersede != null) {
+566222:         markActiveRunSupersededByUser?.();
+566223:       }
+566224:     }
+566225:     cancelActiveRun?.(new SandRunAbortError({ intentional: true, reason }));
+566226:     return hadActiveRun;
+566227:   }
+566228:   function requestPauseForUpgrade() {
+566229:     pausingForUpgrade = true;
+566230:   }
+566231:   function isPausingForUpgrade() {
+566232:     return pausingForUpgrade;
+566233:   }
+566234:   function cancelPauseForUpgrade() {
+566235:     pausingForUpgrade = false;
+566236:   }
+566237:   function interruptAll(reason) {
+566238:     const hadActiveRun = interrupt(reason);
+566239:     for (const subagentAgentId of host.subagents.sessions.keys()) {
+566240:       host.subagents.abortSubagent({ subagentAgentId, reason });
+566241:     }
+566242:     return hadActiveRun;
+
+566808:         if (profileUpdateForTurn != null) {
+566809:           settle.noteProfileUpdateAppended(profileUpdateForTurn.identity);
+566810:         }
+566811:         const frozenSectionUpdate = actionOnly ? null : host.systemPromptAssembly.getFrozenSectionUpdatesForTurn();
+566812:         const toolDescriptionUpdate = actionOnly ? null : getToolDescriptionUpdatesForTurn(host);
+566813:         const instructionsUpdateForTurn = [frozenSectionUpdate?.text, toolDescriptionUpdate?.text].filter((text3) => text3 !== void 0).join("\n\n");
+566814:         const appendUnfinishedTasksReminder = !actionOnly && (unfinishedTasksReminderPending || options2.unfinishedTasksReminder === true);
+566815:         const {
+566816:           action,
+566817:           automationStatusReminder,
+566818:           automationStatusCompactionEpoch,
+566819:           prependedUserMessageDedupeFloorMessageId
+566820:         } = actionOnly ? {
+566821:           action: promptlessAction,
+566822:           automationStatusReminder: null,
+566823:           automationStatusCompactionEpoch: 0,
+566824:           prependedUserMessageDedupeFloorMessageId: void 0
+566825:         } : await host.promptGlue.assembleTurnAction({
+566826:           runCtx,
+566827:           trimmedPrompt,
+566828:           options: options2,
+566829:           isSimulatedMsg: syntheticUserTurn,
+566830:           profileUpdateForTurn,
+566831:           instructionsUpdateForTurn: instructionsUpdateForTurn.length > 0 ? instructionsUpdateForTurn : null,
+566832:           appendUnfinishedTasksReminder,
+566833:           compactionEpoch: () => host.getConversationState().summaryArchives.length,
+566834:           shellWatchHost: host.shellWatchHost()
+566835:         });
+
+567067:               prependedUserMessageDedupeFloorMessageId,
+567068:               ...userFormVaultKeys !== void 0 ? { userFormVaultKeys } : {},
+567069:               diskPressureReminderEpisodeId,
+567070:               onProfileUpdateAppended: settle.noteProfileUpdateAppended,
+567071:               emittedConnectorCards,
+567072:               performanceObservation,
+567073:               conversationActionReceiver: steerInbox.receiver(privacyMode),
+567074:               ...idleCompaction === void 0 ? {} : { summarizeActionMode: "threshold" },
+567075:               ...host.inference.recordPostTurnLabeling == null && (skipLabeling || host.inference.recordFollowupLabeling == null) ? {} : {
+567076:                 captureFirstStreamMessages: (messages) => {
+567077:                   settle.captureTurnStartMessages(messages);
+567078:                   if (!skipLabeling && host.inference.recordFollowupLabeling != null) {
+
