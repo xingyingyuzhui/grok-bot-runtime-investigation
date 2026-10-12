@@ -1,0 +1,105 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+478745: function throwIfAborted(ctx) {
+478746:   if (ctx.signal.aborted) {
+478747:     throw new ToolCallAbortedError();
+478748:   }
+478749: }
+478750: var WAKE_REASON_CONTEXT_INJECTION = "context_injection";
+478751: async function sleepOrAbortOrSteerRelease(ctx, ms2, steerSignal) {
+478752:   throwIfAborted(ctx);
+478753:   if (steerSignal?.hasPendingUserInjections()) {
+478754:     return "steer_release";
+478755:   }
+478756:   return await new Promise((resolve16, reject2) => {
+478757:     let timeout2;
+478758:     let unsubscribe;
+478759:     function cleanup() {
+478760:       if (timeout2 !== void 0) {
+478761:         clearTimeout(timeout2);
+478762:         timeout2 = void 0;
+478763:       }
+478764:       ctx.signal.removeEventListener("abort", onAbort);
+478765:       unsubscribe?.();
+478766:       unsubscribe = void 0;
+478767:     }
+478768:     function onAbort() {
+478769:       cleanup();
+478770:       reject2(new ToolCallAbortedError());
+478771:     }
+478772:     ctx.signal.addEventListener("abort", onAbort, { once: true });
+478773:     timeout2 = setTimeout(() => {
+478774:       cleanup();
+478775:       resolve16("timeout");
+478776:     }, ms2);
+478777:     unsubscribe = steerSignal?.onUserInjectionAdmitted(() => {
+478778:       cleanup();
+478779:       resolve16("steer_release");
+478780:     });
+478781:   });
+
+479192:           let subagentWaitSteerReleased = false;
+479193:           let subagentAwaitResult;
+479194:           {
+479195:             let unsubscribeSteer;
+479196:             const steerReleasePromise = new Promise((resolve16) => {
+479197:               if (steerSignal === void 0) {
+479198:                 return;
+479199:               }
+479200:               if (steerSignal.hasPendingUserInjections()) {
+479201:                 resolve16("steer_release");
+479202:                 return;
+479203:               }
+479204:               unsubscribeSteer = steerSignal.onUserInjectionAdmitted(() => {
+479205:                 resolve16("steer_release");
+479206:               });
+479207:             });
+479208:             try {
+479209:               const raced = await Promise.race([
+479210:                 rawSubagentAwaitPromise.then((result) => ({ kind: "result", result }), (error3) => ({ kind: "error", error: error3 })),
+479211:                 steerReleasePromise.then(() => ({
+479212:                   kind: "steer_release"
+479213:                 }))
+479214:               ]);
+479215:               if (raced.kind === "error") {
+479216:                 throw raced.error;
+479217:               }
+479218:               if (raced.kind === "steer_release") {
+479219:                 subagentWaitSteerReleased = true;
+479220:                 cancelAwait();
+479221:                 rawSubagentAwaitPromise.catch(() => void 0);
+479222:                 subagentAwaitResult = new SubagentAwaitResult({
+479223:                   result: {
+479224:                     case: "stillRunning",
+479225:                     value: new SubagentAwaitStillRunning({
+479226:                       agentId: taskId,
+479227:                       transcriptPath: await getFallbackTranscriptPath()
+479228:                     })
+479229:                   }
+479230:                 });
+479231:               } else {
+479232:                 subagentAwaitResult = raced.result;
+479233:               }
+479234:             } finally {
+479235:               unsubscribeSteer?.();
+479236:             }
+
+479392:           const timedOut = blockUntilMs === 0 || Date.now() >= deadlineMs;
+479393:           const steerReleased = steerReleasedMidSleep || steerSignal?.hasPendingUserInjections() === true;
+479394:           if (timedOut || steerReleased) {
+479395:             return new AwaitResult({
+479396:               result: {
+479397:                 case: "success",
+479398:                 value: new AwaitSuccess({
+479399:                   awaitResult: {
+479400:                     case: "stillRunning",
+479401:                     value: new AwaitTaskStillRunning({
+479402:                       taskId,
+479403:                       runtimeMs: BigInt(Math.max(0, runtimeMs)),
+479404:                       outputFilePath: outputPath,
+479405:                       outputLength: BigInt(snapshot.outputLength),
+479406:                       regexRequested,
+479407:                       regexMatch,
+479408:                       wakeReason: steerReleased ? WAKE_REASON_CONTEXT_INJECTION : void 0
+479409:                     })
+

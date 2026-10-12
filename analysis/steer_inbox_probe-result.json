@@ -1,0 +1,13 @@
+{
+  "source": "collected SandSteerInbox implementation",
+  "checks": [
+    "live-run admission",
+    "admission notification",
+    "FIFO",
+    "failed-delivery requeue",
+    "delivery acknowledgment",
+    "run-end rejection"
+  ],
+  "result": "passed",
+  "scope": "isolated inbox; does not establish cloud Workflow behavior"
+}

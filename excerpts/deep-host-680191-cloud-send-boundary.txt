@@ -1,0 +1,76 @@
+Source: sources/opt/sand/sand-host/host-main.cjs
+
+680191: async function perform(client, request5) {
+680192:   const callOptions = {
+680193:     timeoutMs: SERVER_AGENT_ACTION_TIMEOUT_MS
+680194:   };
+680195:   switch (request5.method) {
+680196:     case "sendPrompt": {
+680197:       const {
+680198:         args
+680199:       } = request5;
+680200:       const response = await client.sendGrokBotUserMessage({
+680201:         agentId: args.agentId,
+680202:         messageId: args.clientNonce,
+680203:         text: args.prompt,
+680204:         sentAtMs: BigInt(Date.now()),
+680205:         richText: args.richText,
+680206:         replyToId: args.replyToId,
+680207:         isFork: args.isFork === true,
+680208:         attachmentPaths: [...args.attachmentPaths ?? []],
+680209:         attachmentNames: [...args.attachmentNames ?? []],
+680210:         traceparent: args.traceparent,
+680211:         enterEpochMs: args.enterEpochMs === void 0 ? void 0 : BigInt(args.enterEpochMs),
+680212:         composedAtMs: args.composedAtMs === void 0 ? void 0 : BigInt(args.composedAtMs),
+680213:         source: clientSurfaceProto(args.source),
+680214:         ...sessionIdField(args.sessionId),
+680215:         ...args.machineId != null && args.machineId.length > 0 ? {
+680216:           machineId: args.machineId
+680217:         } : {},
+680218:         ...args.onePasswordAppInstalled === true ? {
+680219:           onePasswordAppInstalled: true
+680220:         } : {},
+680221:         ...args.mcpConfigJson === void 0 ? {} : {
+680222:           mcpConfigJson: args.mcpConfigJson
+680223:         },
+680224:         ...args.taskId === void 0 ? {} : {
+680225:           taskId: args.taskId
+680226:         },
+680227:         initiator: messageInitiatorProto(args.initiator),
+680228:         sendSource: mobileSendSourceProto(args.sendSource)
+680229:       }, callOptions);
+680230:       switch (response.delivery) {
+680231:         case GrokBotUserMessageDelivery.ACCEPTED_BOX:
+680232:         case GrokBotUserMessageDelivery.ACCEPTED_TEMPORAL:
+680233:         case GrokBotUserMessageDelivery.DUPLICATE:
+680234:           return {
+680235:             status: "ok",
+680236:             value: {
+680237:               accepted: true
+680238:             }
+680239:           };
+680240:         case GrokBotUserMessageDelivery.REFUSED:
+680241:           return refused(response.refusal, request5.method);
+680242:         case GrokBotUserMessageDelivery.UNSPECIFIED:
+680243:           return unreadableDelivery(response.delivery);
+680244:         default: {
+
+263964:         this.mode = GrokBotTemporalHarnessMode.UNSPECIFIED;
+263965:         this.delivery = GrokBotUserMessageDelivery.UNSPECIFIED;
+263966:         proto3.util.initPartial(data2, this);
+263967:       }
+263968:       static fromBinary(bytes, options2) {
+263969:         return new _SendGrokBotUserMessageResponse().fromBinary(bytes, options2);
+263970:       }
+263971:       static fromJson(jsonValue, options2) {
+263972:         return new _SendGrokBotUserMessageResponse().fromJson(jsonValue, options2);
+263973:       }
+263974:       static fromJsonString(jsonString, options2) {
+263975:         return new _SendGrokBotUserMessageResponse().fromJsonString(jsonString, options2);
+263976:       }
+263977:       static equals(a, b2) {
+263978:         return proto3.util.equals(_SendGrokBotUserMessageResponse, a, b2);
+263979:       }
+263980:       static $() {
+263981:         return ["SendGrokBotUserMessageResponse|1 dispatched 8|2 mode #0|3 workflow_id 9?|4 delivery #1|5 refusal #2?", GrokBotTemporalHarnessMode, GrokBotUserMessageDelivery, GrokBotHarnessRefusal];
+

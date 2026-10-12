@@ -1,0 +1,151 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+446569: var MCP_STEER_RELEASE_DEFAULT_MIN_RUNTIME_MS = 5e3;
+446570: function formatSteerReleasedMcpText(args) {
+446571:   const seconds = Math.max(1, Math.round(args.runtimeMs / 1e3));
+446572:   return `Tool call released early after ${seconds}s: a new user message is arriving. The in-flight request to "${args.toolName}" on "${args.server}" was cancelled (any result it still produces will be discarded). This tool's server declares it read-only; that declaration is not verified, so if this call's effects or completion matter, re-run the tool or check state directly rather than assuming nothing changed. Handle the user's message first.`;
+446573: }
+446574: function createSteerReleasedMcpSuccess(args) {
+446575:   return new McpSuccess({
+446576:     content: [
+446577:       new McpToolResultContentItem({
+446578:         content: {
+446579:           case: "text",
+446580:           value: new McpTextContent({
+446581:             text: formatSteerReleasedMcpText(args)
+446582:           })
+446583:         }
+446584:       })
+446585:     ],
+446586:     isError: false
+446587:   });
+446588: }
+446589: function createSteerReleasedMcpResult(args) {
+446590:   return new McpToolResult({
+446591:     result: {
+446592:       case: "success",
+446593:       value: createSteerReleasedMcpSuccess(args)
+446594:     }
+446595:   });
+446596: }
+446597: var MCP_STEER_RELEASE_DRAIN_MS = 1500;
+446598: async function raceMcpExecAgainstSteerRelease(args) {
+446599:   const { toolCtx, steerSignal, minRuntimeMs, drainMs = MCP_STEER_RELEASE_DRAIN_MS, run } = args;
+446600:   const startMs = Date.now();
+446601:   const [execCtx, cancelExec] = toolCtx.withCancel();
+446602:   let releaseTimer;
+446603:   let drainTimer;
+446604:   let unsubscribeSteer;
+446605:   let released = false;
+446606:   let resolveDrainExpired;
+446607:   const drainExpired = new Promise((resolve16) => {
+446608:     resolveDrainExpired = resolve16;
+446609:   });
+446610:   const releaseNow = () => {
+446611:     if (released) {
+446612:       return;
+446613:     }
+446614:     released = true;
+446615:     cancelExec(new Error("MCP call released early: a user steer was admitted"));
+446616:     drainTimer = setTimeout(() => {
+446617:       resolveDrainExpired?.();
+446618:     }, drainMs);
+446619:   };
+446620:   const scheduleRelease = () => {
+446621:     if (released || releaseTimer !== void 0) {
+446622:       return;
+446623:     }
+446624:     const remainingMs = minRuntimeMs - (Date.now() - startMs);
+446625:     if (remainingMs <= 0) {
+446626:       releaseNow();
+446627:       return;
+446628:     }
+446629:     releaseTimer = setTimeout(releaseNow, remainingMs);
+446630:   };
+446631:   try {
+446632:     if (steerSignal.hasPendingUserInjections()) {
+446633:       scheduleRelease();
+446634:     } else {
+446635:       unsubscribeSteer = steerSignal.onUserInjectionAdmitted(() => {
+446636:         scheduleRelease();
+446637:       });
+446638:     }
+446639:     const execPromise = run(execCtx).then((execResult) => ({ kind: "settled", execResult }), (error3) => ({ kind: "errored", error: error3 }));
+446640:     const raced = await Promise.race([
+446641:       execPromise,
+446642:       drainExpired.then(() => ({ kind: "drain_expired" }))
+446643:     ]);
+446644:     if (raced.kind === "drain_expired") {
+446645:       void execPromise.catch(() => void 0);
+446646:       return { kind: "steer_released", runtimeMs: Date.now() - startMs };
+446647:     }
+446648:     if (raced.kind === "errored") {
+446649:       if (released && !toolCtx.signal.aborted) {
+446650:         return {
+446651:           kind: "steer_released",
+446652:           runtimeMs: Date.now() - startMs,
+446653:           execErrorAfterRelease: raced.error
+446654:         };
+446655:       }
+446656:       throw raced.error;
+446657:     }
+446658:     return { kind: "completed", execResult: raced.execResult };
+446659:   } finally {
+446660:     if (releaseTimer !== void 0) {
+446661:       clearTimeout(releaseTimer);
+446662:     }
+446663:     if (drainTimer !== void 0) {
+446664:       clearTimeout(drainTimer);
+446665:     }
+446666:     unsubscribeSteer?.();
+446667:   }
+446668: }
+
+446889: Rebuild the arguments from this schema before retrying.`;
+446890: }
+446891: var createCallMcpTool = (options2) => {
+446892:   const { resourceAccessor, name: name17 = "CallMcpTool", mcpFileSystemOptions, mcpMetaToolOptions, validateMcpToolDescriptors = false, normalizeArgumentsToInputSchema = false, renameUnmatchedArgumentKeys, onAutomaticArgumentFix, repairArgumentsInOnePass, getMcpToolsToolName, allowInteractiveMcpAuth = false, nonInteractiveAuthError, requestContext, dynamicToolRegistry, isMcpToolBlocked, mcpToolBlockedModelSuffix, steerReleaseReadOnlyTools = false, steerReleaseMinRuntimeMs = MCP_STEER_RELEASE_DEFAULT_MIN_RUNTIME_MS, steerReleaseDrainMs = MCP_STEER_RELEASE_DRAIN_MS, enableExecuteHookExec, model, hackySymbolicToolCalls = false, writeToolResultText, symbolicPathArgumentsUnavailableFor, symbolicPathReadExecutor, onCallSettled } = options2;
+446893:   const useDynamicToolNamespaces = dynamicToolRegistry !== void 0;
+446894:   const reviewGate = options2.createReviewGate?.(options2) ?? NO_MCP_REVIEW;
+446895:   const executor = resourceAccessor.get(mcpExecutorResource);
+446896:   const mcpMetaToolEnabled = mcpMetaToolOptions?.enabled ?? false;
+446897:   const resolvedGetMcpToolsToolName = getMcpToolsToolName ?? "GetMcpTools";
+446898:   const serverDescriptors = /* @__PURE__ */ new Map();
+
+447681:         let execResult;
+447682:         try {
+447683:           if (abortSignal.aborted) {
+447684:             throw new ToolCallAbortedError();
+447685:           }
+447686:           const executeInner = (execCtx, mcpArgs) => executor.execute(execCtx.with(agentToolExecutionMetaKey, meta), mcpArgs, {
+447687:             execId: generateSeededUuid(meta.toolCallId),
+447688:             hookContextCollector: meta.hookContextCollector
+447689:           });
+447690:           const steerReleaseSignal = steerReleaseReadOnlyTools && parseMcpToolAnnotations(toolDescriptor?.annotationsJson)?.readOnlyHint === true ? meta.contextInjectionSignal : void 0;
+447691:           let steerReleaseOutcome;
+447692:           const executeWithOptionalSteer = async (execCtx, mcpArgs) => {
+447693:             if (steerReleaseSignal === void 0) {
+447694:               return executeInner(execCtx, mcpArgs);
+447695:             }
+447696:             const outcome = await raceMcpExecAgainstSteerRelease({
+447697:               toolCtx: execCtx,
+447698:               steerSignal: steerReleaseSignal,
+447699:               minRuntimeMs: steerReleaseMinRuntimeMs,
+447700:               drainMs: steerReleaseDrainMs,
+447701:               run: (raceCtx) => executeInner(raceCtx, mcpArgs)
+447702:             });
+447703:             if (outcome.kind === "completed") {
+447704:               return outcome.execResult;
+447705:             }
+447706:             steerReleaseOutcome = outcome;
+447707:             return new McpResult({
+447708:               result: {
+447709:                 case: "success",
+447710:                 value: createSteerReleasedMcpSuccess({
+447711:                   server: args.server,
+447712:                   toolName: args.toolName,
+447713:                   runtimeMs: outcome.runtimeMs
+447714:                 })
+447715:               }
+447716:             });
+

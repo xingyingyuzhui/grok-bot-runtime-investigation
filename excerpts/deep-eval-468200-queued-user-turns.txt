@@ -1,0 +1,151 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+467755:             const readPathsBefore = new Set(stateHandler.readPaths);
+467756:             const { hasToolCall, responseMessages, toolCallIdentityResolver } = await this.executeStepWithMetrics(ctx, turn, {
+467757:               wrappedPromptExecutor: wrappedRootPromptExecutor,
+467758:               rootPromptExecutor
+467759:             }, stateHandler, toolsGenerator, currentMcpTools, repositoryInfo, requestContext, fileOperationLockManager, onStateUpdate, previousQueuedMessageSource, emptyResponseRetryTurnBudget);
+467760:             const toolCallsInStep = responseMessages.filter((message) => message.role === "tool").length;
+467761:             totalToolCallsInTurn += toolCallsInStep;
+467762:             const assistantMessagesInStep = countAssistantMessages(responseMessages);
+467763:             const hasReflectGeneralCall = hasReflectGeneralToolCall(responseMessages, toolCallIdentityResolver);
+467764:             if (hasReflectGeneralCall) {
+467765:               assistantMessagesSinceLastReflectGeneral = 0;
+467766:             } else {
+467767:               assistantMessagesSinceLastReflectGeneral += assistantMessagesInStep;
+467768:             }
+467769:             previousStepCount = turn.steps.length;
+467770:             await this.applyPostStepProcessing(ctx, turn, rootPromptExecutor, stateHandler, hasToolCall, responseMessages, onStateUpdate);
+467771:             const isLastIteration = step === stepLimit - 1;
+467772:             let updatedTurn = turn;
+467773:             let hasQueuedMessages = false;
+467774:             let queuedMessageSource = "none";
+467775:             let hasQueuedUserTurn = false;
+467776:             let updatedMcpTools = currentMcpTools;
+467777:             const queuedAction = await this.conversationActionReceiver.peek(ctx);
+467778:             if (queuedAction?.action.case === "asyncAskQuestionCompletionAction") {
+467779:               logger68.info(ctx, "Found queued AsyncAskQuestionCompletionAction - processing immediately", {
+467780:                 originalToolCallId: queuedAction.action.value.originalToolCallId
+467781:               });
+467782:               await this.conversationActionReceiver.pop(ctx);
+467783:               const completionAction = queuedAction.action.value;
+467784:               const application = await applyAskQuestionCompletion(ctx, {
+467785:                 action: completionAction,
+467786:                 stateHandler,
+467787:                 turn,
+467788:                 rootPromptExecutor,
+467789:                 resultFormat: "json-object"
+467790:               });
+467791:               if (application.outcome === "applied") {
+467792:                 const syntheticModelCallId = (0, import_node_crypto24.randomUUID)();
+467793:                 await this.interactionListener.sendUpdate(ctx, RedactedUpdates.toolCallStarted(application.recordedToolCallId, application.toolCall, syntheticModelCallId));
+467794:                 await this.interactionListener.sendUpdate(ctx, RedactedUpdates.toolCallCompleted(application.recordedToolCallId, application.toolCall, syntheticModelCallId));
+467795:                 logger68.info(ctx, "Injected async completion into current turn", {
+467796:                   originalToolCallId: completionAction.originalToolCallId,
+467797:                   resultCase: completionAction.result?.result.case
+467798:                 });
+467799:                 totalToolCallsInTurn += 1;
+467800:                 hasQueuedMessages = true;
+467801:                 queuedMessageSource = "asyncAskQuestionCompletion";
+467802:               } else {
+467803:                 logger68.info(ctx, "Dropped queued async completion", {
+467804:                   originalToolCallId: completionAction.originalToolCallId,
+467805:                   outcome: application.outcome
+467806:                 });
+467807:               }
+467808:             }
+467809:             if (!isLastIteration) {
+467810:               const modeBeforeQueuedTurns = stateHandler.mode;
+467811:               const result = await this.consumeQueuedUserMessagesAndMaybeCreateNewTurns(ctx, stateHandler, turn, currentMcpTools, onStateUpdate);
+467812:               if (stateHandler.mode !== modeBeforeQueuedTurns) {
+467813:                 previousMode = stateHandler.mode;
+467814:               }
+467815:               updatedTurn = result.turn;
+467816:               hasQueuedMessages = hasQueuedMessages || result.hasQueuedMessages;
+467817:               if (result.hasQueuedMessages) {
+467818:                 queuedMessageSource = "consumeQueuedUserMessages";
+467819:               }
+467820:               hasQueuedUserTurn = result.hasQueuedMessages;
+467821:               updatedMcpTools = result.mcpTools;
+467822:             }
+
+468200:   async consumeQueuedUserMessagesAndMaybeCreateNewTurns(ctx, stateHandler, currentTurn, currentMcpTools, onStateUpdate) {
+468201:     let turn = currentTurn;
+468202:     let hasQueuedMessages = false;
+468203:     let mcpTools = currentMcpTools;
+468204:     while (true) {
+468205:       const queuedAction = await this.conversationActionReceiver.peek(ctx);
+468206:       if (queuedAction?.action.case === "asyncAskQuestionCompletionAction") {
+468207:         logger68.warn(ctx, "Found AsyncAskQuestionCompletionAction in queue handler - should have been handled by inline handler", {
+468208:           originalToolCallId: queuedAction.action.value.originalToolCallId
+468209:         });
+468210:         break;
+468211:       }
+468212:       if (queuedAction?.action.case !== "userMessageAction") {
+468213:         break;
+468214:       }
+468215:       const { userMessage: queuedMsg, requestContext: queuedReqContext } = queuedAction.action.value;
+468216:       if (!queuedMsg) {
+468217:         throw new Error("User message is required");
+468218:       }
+468219:       let consumedClaimedInjection = false;
+468220:       if (this.conversationActionReceiver.peekIsClaimedInjection?.() === true) {
+468221:         await this.conversationActionReceiver.pop(ctx);
+468222:         consumedClaimedInjection = true;
+468223:       }
+468224:       const turnMsg = await turn.userMessage.get(ctx);
+468225:       const shouldCreateNewTurn = turnMsg.messageId !== queuedMsg.messageId;
+468226:       if (!shouldCreateNewTurn || queuedReqContext === void 0) {
+468227:         logger68.info(ctx, "Queued user message consumption decision", {
+468228:           queuedMessageId: queuedMsg.messageId,
+468229:           currentTurnMessageId: turnMsg.messageId,
+468230:           decision: shouldCreateNewTurn ? "new_turn_created" : "already_has_turn",
+468231:           missingQueuedRequestContext: queuedReqContext === void 0,
+468232:           immediatelyUpdateStateOnNewTurn: this.config.immediatelyUpdateStateOnNewTurn,
+468233:           fireAndForgetCheckpoints: this.config.fireAndForgetCheckpoints
+468234:         });
+468235:       }
+468236:       if (shouldCreateNewTurn) {
+468237:         try {
+468238:           ensureUserMessageTiming(queuedMsg);
+468239:           const persistedUserMessage = fromRedactedUserMessage2(queuedMsg, PrivacyCapability.UNSAFE_ALWAYS_ALLOWED);
+468240:           if (consumedClaimedInjection) {
+468241:             persistedUserMessage.turnSteer = true;
+468242:           }
+468243:           await this.interactionListener.sendUpdate(ctx, RedactedUpdates.userMessageAppended(consumedClaimedInjection ? toRedactedUserMessage2(persistedUserMessage, stateHandler.getPrivacyMode()) : queuedMsg));
+468244:           turn = await stateHandler.createAgentTurn(ctx, persistedUserMessage, queuedReqContext ? fromRedactedRequestContext(queuedReqContext, PrivacyCapability.UNSAFE_ALWAYS_ALLOWED) : new RequestContext(), this.config, this.resourceAccessor);
+468245:           stateHandler.setMode(stateHandler.resolveTurnMode(persistedUserMessage));
+468246:         } catch (error3) {
+468247:           if (consumedClaimedInjection) {
+468248:             this.conversationActionReceiver.failConsumedInjectionDelivery?.();
+468249:           }
+468250:           throw error3;
+468251:         }
+468252:         hasQueuedMessages = true;
+468253:         if (this.config.immediatelyUpdateStateOnNewTurn) {
+468254:           if (this.config.fireAndForgetCheckpoints) {
+468255:             void stateHandler.computeNewStructure(ctx).then(async (newState) => {
+468256:               if (onStateUpdate) {
+468257:                 await onStateUpdate(ctx, newState);
+468258:               }
+468259:             }).catch((error3) => {
+468260:               logger68.error(ctx, "Failed to persist checkpoint after creating queued turn", {
+468261:                 error: error3
+468262:               });
+468263:             });
+468264:           } else {
+468265:             const newState = await stateHandler.computeNewStructure(ctx);
+468266:             if (onStateUpdate) {
+468267:               await onStateUpdate(ctx, newState);
+468268:             }
+468269:           }
+468270:         }
+468271:       }
+468272:       if (!consumedClaimedInjection) {
+468273:         await this.conversationActionReceiver.pop(ctx);
+468274:       }
+468275:       const unredactedTools = queuedReqContext?.tools?.map((t) => fromRedactedMcpToolDefinition(t, PrivacyCapability.UNSAFE_ALWAYS_ALLOWED)) ?? [];
+468276:       mcpTools = this.mergeRequestContextTools(currentMcpTools, unredactedTools);
+468277:     }
+468278:     return { turn, hasQueuedMessages, mcpTools };
+

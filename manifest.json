@@ -11,18 +11,38 @@
     },
     {
       "path": "README.md",
-      "bytes": 2114,
-      "sha256": "f476f738322c2a32d71061e61b1aed4aa4a4df18d4135e1df6f7a296f6d2e71d"
+      "bytes": 2244,
+      "sha256": "c686159e95e3174af21f891bc7a3620b57508844c9356bcb9be363ddd9d74279"
     },
     {
       "path": "SECRET_SCAN.md",
-      "bytes": 1393,
-      "sha256": "bfac918e85ae0c02f2914ecc0ad9b46244b739fcf387b1b2d2bbd7555fe3840a"
+      "bytes": 1635,
+      "sha256": "06734ee7a79c101685b54a8d4428283244904448f6e277cce3ca7886a190ed1b"
     },
     {
       "path": "SSH补查.md",
       "bytes": 4324,
       "sha256": "f037b6f2e843ebe4eab64129b7d23dca65c988a6e9e864d0201838e727290cff"
+    },
+    {
+      "path": "analysis/cloud-routing-protocol.json",
+      "bytes": 1417,
+      "sha256": "46a288ac0506251f9a0613110bba5778ff1b6769d281ec22b881f101c4c902f7"
+    },
+    {
+      "path": "analysis/deployment-scope.json",
+      "bytes": 2341,
+      "sha256": "4465cc026c860f7af5c47e4838f97a93c86ca8e7fd9b101f424555245fe711ac"
+    },
+    {
+      "path": "analysis/steer_inbox_probe-result.json",
+      "bytes": 326,
+      "sha256": "645a3f3fe032e6434288f52641210013d48fd7a8783aaeec7726ffab4ac00c88"
+    },
+    {
+      "path": "analysis/steer_inbox_probe.cjs",
+      "bytes": 2742,
+      "sha256": "16f043451221a1aff13e72d08e6aa5db293c5a0fa47199bda19107895157bd5b"
     },
     {
       "path": "evidence-index.json",
@@ -153,6 +173,51 @@
       "path": "excerpts/739686-subagent-revival-prompt.ts.txt",
       "bytes": 3226,
       "sha256": "239a655d7319ad052ad50d22c23e66e3ee01b5ca75c7eacbac46e28049a46639"
+    },
+    {
+      "path": "excerpts/deep-eval-446569-mcp-steer-release.txt",
+      "bytes": 7396,
+      "sha256": "d83c43da66d9437b8e0cac468d4bda4d24d17a717e2e32e81e76452b6feab6a2"
+    },
+    {
+      "path": "excerpts/deep-eval-458711-idle-preemption.txt",
+      "bytes": 5647,
+      "sha256": "38ca3c4a7eb59cbc5b68eff8ec9e51a7f5b4729b8f8301d44ccd9f27e88d4519"
+    },
+    {
+      "path": "excerpts/deep-eval-468200-queued-user-turns.txt",
+      "bytes": 9466,
+      "sha256": "d01ac2c9ec6681291ef23df761ed775742d56548c046411d1c5ae21f6348ef07"
+    },
+    {
+      "path": "excerpts/deep-eval-476320-subagent-background-handoff.txt",
+      "bytes": 2902,
+      "sha256": "481a4b8f0f2151edbdff2b45c85728d7c5e0e44c91b2dd6fcec5459842907fe9"
+    },
+    {
+      "path": "excerpts/deep-eval-479192-await-release.txt",
+      "bytes": 4520,
+      "sha256": "3e2fb0044a1c097ccc5f3a8c7fbc772eec6b36389e93d6d311f0a21a046e644a"
+    },
+    {
+      "path": "excerpts/deep-eval-485142-shell-background-handoff.txt",
+      "bytes": 4274,
+      "sha256": "5a05c7b206c3d2c76da2980f5592adbd49db293770faa3af3b9c6906e2d35a04"
+    },
+    {
+      "path": "excerpts/deep-eval-568599-background-stop.txt",
+      "bytes": 1765,
+      "sha256": "2abecc1f8bb2e1c0c46c2bcfb02bf520920ee3d5fc9522a2c50e2663a23fdb35"
+    },
+    {
+      "path": "excerpts/deep-host-680191-cloud-send-boundary.txt",
+      "bytes": 3618,
+      "sha256": "db809586d39ede9299b7ac8dfd83d2d839c7bf9a69c5664089bee1427ae61031"
+    },
+    {
+      "path": "excerpts/deep-host-684893-agent-store-worker-pool.txt",
+      "bytes": 3463,
+      "sha256": "6583282f1438f0f33f087e93b0a2d2842d9e289d9725350ab55c43768e9e1a1c"
     },
     {
       "path": "excerpts/eval-504520-steer-prompt.txt",
@@ -305,6 +370,26 @@
       "sha256": "c9013b2986988102bf5ff53f003f1ef91b873bb886820ebbd97698964ff2b7fa"
     },
     {
+      "path": "sources/opt/sand/deps/runtime-deps-manifest.json",
+      "bytes": 639,
+      "sha256": "217aa0897fea7a6692b36f5cdad368a2e11e0b4a8a782c7455808c1a11f184d1"
+    },
+    {
+      "path": "sources/opt/sand/sand-host/agent-isolation/agent-store-worker.cjs",
+      "bytes": 700718,
+      "sha256": "06e0ac909a07cf9adec49a3743d3a6901466d5aacd12008e75aa5506616d657c"
+    },
+    {
+      "path": "sources/opt/sand/sand-host/extensions/box-store-sync/box-store-vacuum-worker.cjs",
+      "bytes": 5226,
+      "sha256": "eb6be532cb334b7104d14b3c3e007220c23454187872817aa5f1928ae276ea26"
+    },
+    {
+      "path": "sources/opt/sand/sand-host/extensions/content-search/search-index-worker.cjs",
+      "bytes": 76527,
+      "sha256": "12a87c6c515ecffe331d297c558a9a85d3f83866c5769fcc9f6b4b4a4c656be2"
+    },
+    {
       "path": "sources/opt/sand/sand-host/host-main.cjs",
       "bytes": 28534838,
       "sha256": "1f57bcae01edd69eca81727d78f25f107ceeb4b52711dfa3f2207d3d95296b0a"
@@ -315,9 +400,44 @@
       "sha256": "4dc61781787129aa6509ae7c7f68e1693028a09df11c88d0b52f90269821007e"
     },
     {
+      "path": "sources/usr/local/bin/sand-desktop-supervise.sh",
+      "bytes": 2436,
+      "sha256": "dfdc6ef0801f61c885f8bfee48ea44df76f90d7ebbdfc4522acefa8574dffd0b"
+    },
+    {
       "path": "sources/usr/local/bin/sand-exit-watch",
       "bytes": 21916,
       "sha256": "a8227a0872a91f9b17fc484569f79977f2ecdff0afaed999253b15a91f574102"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-memory-watch",
+      "bytes": 15116,
+      "sha256": "afda0d38acc838152365309a0c80c6c1ceb303332fc6cb46fb56a924f94bbd02"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor-contract.mjs",
+      "bytes": 6585,
+      "sha256": "562fd0f07cbb15fe84fcecf6b62ed350b0b585418cf48559440248d32046575e"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor-desktop.mjs",
+      "bytes": 26908,
+      "sha256": "0c37e80a441186390f7f41e16c4516d8717906f4f88ffb22f2221e4f13c65898"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor-host-bundle.mjs",
+      "bytes": 16591,
+      "sha256": "6bf3525412cd38095c5934539f09ceec214bef7663d02ce47fea9269adcf5cd1"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor-host-policy.mjs",
+      "bytes": 9656,
+      "sha256": "5ec5fb72b53b9fc00801fea7efe41262b965ac6aa8ec298bb1ab01946e5e71aa"
+    },
+    {
+      "path": "sources/usr/local/bin/sand-supervisor-process-identity.mjs",
+      "bytes": 8501,
+      "sha256": "187abf01e7bd41972e07d719e2678ef69d41bd1672d8e7de60ce2ccc6ca0f900"
     },
     {
       "path": "sources/usr/local/bin/sand-supervisor.mjs",
@@ -335,9 +455,29 @@
       "sha256": "384972a637456c52512819a1cd89f49b1cc2161aa5d11b2612a2dbca9b849701"
     },
     {
+      "path": "sources/usr/local/bin/start-exec-daemon",
+      "bytes": 659,
+      "sha256": "27913e7709cdbe57483572f2c65776cb9f0bc666e1a60de9a03894296f47cdbf"
+    },
+    {
+      "path": "sources/usr/local/bin/start-sand-box",
+      "bytes": 47672,
+      "sha256": "855653bd968842cbbd7b5f01e339bc4aea1b8c2c9c7008b1f68cc23c2cddfff8"
+    },
+    {
       "path": "sources/usr/local/bin/start-window",
       "bytes": 3488,
       "sha256": "324b0708c668b0e4c278929407687a8c82fec12d65a606a1761b43cdf486d30e"
+    },
+    {
+      "path": "sources/usr/local/bin/supervise-exec-daemon",
+      "bytes": 5978,
+      "sha256": "bad16edde98cc4d5e6fb1fb46380a317d6eafa1c517a2e77ca417a86679feb5c"
+    },
+    {
+      "path": "sources/usr/local/bin/supervise-sand-supervisor",
+      "bytes": 8020,
+      "sha256": "a006a7fea9103d0e49c6cd0e89dc1fe7d833e79a89fa05bb5c1423bc5ddfc49a"
     },
     {
       "path": "sources/workspace/agents/_shared/call.py",
@@ -350,9 +490,14 @@
       "sha256": "d2c72ccc7fb6a55faddd1596516ba483302a7097ccb5e4d3ec72eb5a027f518f"
     },
     {
+      "path": "扩大范围调查.md",
+      "bytes": 8565,
+      "sha256": "b764b600c7e03d589b4935ae2d3179afa4305721e74e086d685553dff3be477f"
+    },
+    {
       "path": "运行机制调查.md",
-      "bytes": 11198,
-      "sha256": "fea8970b348bf471ae7258628d43778926f2c508203338f0f2136640d1c6a075"
+      "bytes": 11447,
+      "sha256": "5948000b6bf5d2a1536c47eb441c43d2c751ff32cdfb3b814fdb7fc96ec147fc"
     }
   ],
   "redactions": {
@@ -361,5 +506,6 @@
     "report": "SECRET_SCAN.md",
     "preserves_source_line_numbers": true
   },
-  "followup_collection_date": "2026-10-12"
+  "followup_collection_date": "2026-10-12",
+  "expanded_collection_date": "2026-10-12"
 }

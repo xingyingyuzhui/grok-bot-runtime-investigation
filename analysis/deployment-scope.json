@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-12",
+  "scope": "deployment and installed-file metadata; selected static runtime content; no user data included",
+  "filename_survey": {
+    "directories_checked": 7245,
+    "file_names_checked": 36415,
+    "scope_note": "bounded walks with exclusions; this is not a complete disk-content scan"
+  },
+  "static_inventory": {
+    "files": 97,
+    "source_maps": 0,
+    "workflow_or_worker_name_candidates": 11
+  },
+  "first_party_content_scan": {
+    "files": 86,
+    "roots": [
+      "/cursor",
+      "/opt/sand",
+      "/usr/local/bin"
+    ],
+    "markers": [
+      "@temporalio/worker",
+      "@temporalio/workflow",
+      "@temporalio/client",
+      "go.temporal.io/sdk",
+      "io.temporal.worker",
+      "temporalio.worker",
+      "NativeConnection",
+      "defineSignal(",
+      "proxyActivities(",
+      "workflowBundle",
+      "taskQueue:",
+      "task_queue="
+    ],
+    "temporal_sdk_marker_hits": 0
+  },
+  "binary_marker_checks": {
+    "paths": [
+      "/pod-daemon",
+      "/exec-daemon/cursorsandbox",
+      "/usr/local/bin/sand-egress-tunnel",
+      "/usr/local/bin/cursor-agent-store-fuse",
+      "/var/lib/sand-daemon-supervisor/orbitd/bundled/orbitd"
+    ],
+    "temporal_sdk_markers_found": false,
+    "active_orbitd_release_not_inspected": true
+  },
+  "new_static_files": [
+    "sources/opt/sand/deps/runtime-deps-manifest.json",
+    "sources/opt/sand/sand-host/agent-isolation/agent-store-worker.cjs",
+    "sources/opt/sand/sand-host/extensions/box-store-sync/box-store-vacuum-worker.cjs",
+    "sources/opt/sand/sand-host/extensions/content-search/search-index-worker.cjs",
+    "sources/usr/local/bin/sand-desktop-supervise.sh",
+    "sources/usr/local/bin/sand-memory-watch",
+    "sources/usr/local/bin/sand-supervisor-contract.mjs",
+    "sources/usr/local/bin/sand-supervisor-desktop.mjs",
+    "sources/usr/local/bin/sand-supervisor-host-bundle.mjs",
+    "sources/usr/local/bin/sand-supervisor-host-policy.mjs",
+    "sources/usr/local/bin/sand-supervisor-process-identity.mjs",
+    "sources/usr/local/bin/start-exec-daemon",
+    "sources/usr/local/bin/start-sand-box",
+    "sources/usr/local/bin/supervise-exec-daemon",
+    "sources/usr/local/bin/supervise-sand-supervisor"
+  ],
+  "remote_connection_limit": "SSH later timed out during banner exchange while jump-host port 2222 remained listening"
+}

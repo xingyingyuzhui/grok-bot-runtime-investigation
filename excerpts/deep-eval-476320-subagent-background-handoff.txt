@@ -1,0 +1,57 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+476320:             const steerSignal = meta.contextInjectionSignal;
+476321:             let stopSteerHandoff;
+476322:             if (steerSignal !== void 0 && runInBackground2 !== true) {
+476323:               const STEER_HANDOFF_RETRY_MS = 500;
+476324:               let stopped = false;
+476325:               let handoffInFlight = false;
+476326:               let handoffAccepted = false;
+476327:               let retryTimer;
+476328:               let unsubscribe;
+476329:               const requestSteerHandoff = () => {
+476330:                 if (stopped || handoffInFlight || handoffAccepted) {
+476331:                   return;
+476332:                 }
+476333:                 handoffInFlight = true;
+476334:                 void (async () => {
+476335:                   try {
+476336:                     const forceBackgroundExecutor = resourceAccessor.get(forceBackgroundSubagentExecutorResource);
+476337:                     const forceBackgroundResult = await forceBackgroundExecutor.execute(ctx, new ForceBackgroundSubagentArgs({
+476338:                       toolCallId: meta.toolCallId
+476339:                     }));
+476340:                     if (forceBackgroundResult.status === ForceBackgroundSubagentStatus.ACCEPTED) {
+476341:                       handoffAccepted = true;
+476342:                     }
+476343:                   } catch (error3) {
+476344:                     logger78.debug(ctx, "Steer-driven subagent background handoff failed", {
+476345:                       toolCallId: meta.toolCallId,
+476346:                       error: error3
+476347:                     });
+476348:                   } finally {
+476349:                     handoffInFlight = false;
+476350:                     if (!stopped && !handoffAccepted && retryTimer === void 0 && steerSignal.hasPendingUserInjections()) {
+476351:                       retryTimer = setTimeout(() => {
+476352:                         retryTimer = void 0;
+476353:                         requestSteerHandoff();
+476354:                       }, STEER_HANDOFF_RETRY_MS);
+476355:                     }
+476356:                   }
+476357:                 })();
+476358:               };
+476359:               stopSteerHandoff = () => {
+476360:                 stopped = true;
+476361:                 if (retryTimer !== void 0) {
+476362:                   clearTimeout(retryTimer);
+476363:                   retryTimer = void 0;
+476364:                 }
+476365:                 unsubscribe?.();
+476366:                 unsubscribe = void 0;
+476367:               };
+476368:               unsubscribe = steerSignal.onUserInjectionAdmitted(() => {
+476369:                 requestSteerHandoff();
+476370:               });
+476371:               if (steerSignal.hasPendingUserInjections()) {
+476372:                 requestSteerHandoff();
+476373:               }
+

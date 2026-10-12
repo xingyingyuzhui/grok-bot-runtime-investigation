@@ -1,0 +1,45 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+568589:   hasRunningBackgroundWork() {
+568590:     return isBackgroundWorkRunning(this.subagents, this.backgroundWatches);
+568591:   }
+568592:   async drainBackgroundWork() {
+568593:     await Promise.all([
+568594:       this.subagents.drainBackgroundSubagents(),
+568595:       this.backgroundWatches.drainCloudAgentWatches(),
+568596:       this.backgroundWatches.drainBackgroundShellWork()
+568597:     ]);
+568598:   }
+568599:   async abortBackgroundWork(reason) {
+568600:     this.interruptAll(reason);
+568601:     this.backgroundWatches.abortBackgroundShellWork();
+568602:     this.backgroundWatches.cancelCloudAgentWatches();
+568603:     await this.subagents.drainBackgroundSubagents();
+
+504714:         });
+504715:       }
+504716:     },
+504717:     cancelBackgroundShellRewatches: () => {
+504718:       for (const rewatch of [...shellRewatches.values()]) {
+504719:         rewatch.cancel();
+504720:       }
+504721:       shellRewatches.clear();
+504722:       const observedShells = shellRegistry?.listWork({ kind: "shell", ownerId: SAND_OBSERVED_SHELL_OWNER_ID }) ?? [];
+504723:       for (const work of observedShells) shellRegistry?.clearWork(work.id);
+504724:       notifyShellWorkChanged();
+504725:     },
+504726:     abortBackgroundShellWork: () => {
+504727:       shellRegistry?.abortAllWork({ kind: "shell" });
+504728:       for (const rewatch of [...shellRewatches.values()]) {
+504729:         rewatch.cancel();
+504730:       }
+504731:       shellRewatches.clear();
+504732:       notifyShellWorkChanged();
+504733:     },
+504734:     cancelCloudAgentWatches: () => {
+504735:       watchedCloudAgentBcIds.clear();
+504736:       cloudAgentSettlements.clear();
+504737:     }
+504738:   };
+504739: }
+

@@ -1,0 +1,94 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+485142:           const steerSignal = meta.contextInjectionSignal;
+485143:           let stopSteerHandoff;
+485144:           if (steerSignal !== void 0 && !isBackground) {
+485145:             const STEER_HANDOFF_RETRY_MS = 500;
+485146:             let stopped = false;
+485147:             let handoffInFlight = false;
+485148:             let handoffAccepted = false;
+485149:             let retryTimer;
+485150:             let unsubscribe;
+485151:             const requestSteerHandoff = () => {
+485152:               if (stopped || handoffInFlight || handoffAccepted) {
+485153:                 return;
+485154:               }
+485155:               handoffInFlight = true;
+485156:               void (async () => {
+485157:                 try {
+485158:                   const forceBackgroundExecutor = resourceAccessor.get(forceBackgroundShellExecutorResource);
+485159:                   const forceBackgroundResult = await forceBackgroundExecutor.execute(ctx, new ForceBackgroundShellArgs({
+485160:                     toolCallId: meta.toolCallId
+485161:                   }), machineId !== void 0 ? { execId, machineId } : void 0);
+485162:                   if (forceBackgroundResult.status === ForceBackgroundShellStatus.ACCEPTED) {
+485163:                     handoffAccepted = true;
+485164:                   }
+485165:                 } catch (error3) {
+485166:                   logger97.debug(ctx, "Steer-driven shell background handoff failed", {
+485167:                     toolCallId: meta.toolCallId,
+485168:                     error: error3
+485169:                   });
+485170:                 } finally {
+485171:                   handoffInFlight = false;
+485172:                   if (!stopped && !handoffAccepted && retryTimer === void 0 && steerSignal.hasPendingUserInjections()) {
+485173:                     retryTimer = setTimeout(() => {
+485174:                       retryTimer = void 0;
+485175:                       requestSteerHandoff();
+485176:                     }, STEER_HANDOFF_RETRY_MS);
+485177:                   }
+485178:                 }
+485179:               })();
+485180:             };
+485181:             stopSteerHandoff = () => {
+485182:               stopped = true;
+485183:               if (retryTimer !== void 0) {
+485184:                 clearTimeout(retryTimer);
+485185:                 retryTimer = void 0;
+485186:               }
+485187:               unsubscribe?.();
+485188:               unsubscribe = void 0;
+485189:             };
+485190:             unsubscribe = steerSignal.onUserInjectionAdmitted(() => {
+485191:               requestSteerHandoff();
+485192:             });
+485193:             if (steerSignal.hasPendingUserInjections()) {
+485194:               requestSteerHandoff();
+485195:             }
+
+402785:   /**
+402786:    * Trigger background handoff programmatically (e.g. from user action).
+402787:    */
+402788:   requestBackground() {
+402789:     return this.stop({
+402790:       kind: "background",
+402791:       reason: ShellBackgroundReason.USER_REQUEST
+402792:     });
+402793:   }
+402794:   /**
+402795:    * Trigger timeout programmatically (e.g., from abort signal).
+402796:    */
+402797:   abort() {
+402798:     this.stop({ kind: "abort" });
+402799:   }
+
+402822: var LocalShellStreamExecutor = class {
+402823:   constructor(permissionsService, coreExecutor, ignoreService, backgroundShellManager) {
+402824:     this.permissionsService = permissionsService;
+402825:     this.coreExecutor = coreExecutor;
+402826:     this.ignoreService = ignoreService;
+402827:     this.backgroundShellManager = backgroundShellManager;
+402828:     this.activeForegroundExecutions = /* @__PURE__ */ new Map();
+402829:   }
+402830:   async forceBackgroundByToolCallId(toolCallId) {
+402831:     const execution = this.activeForegroundExecutions.get(toolCallId);
+402832:     const shellResult = execution?.requestBackground();
+402833:     if (!shellResult) {
+402834:       return new ForceBackgroundShellResult({
+402835:         status: ForceBackgroundShellStatus.NOT_FOUND
+402836:       });
+402837:     }
+402838:     return new ForceBackgroundShellResult({
+402839:       status: ForceBackgroundShellStatus.ACCEPTED,
+402840:       shellResult
+402841:     });
+

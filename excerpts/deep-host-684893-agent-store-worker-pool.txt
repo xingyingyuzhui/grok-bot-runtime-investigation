@@ -1,0 +1,83 @@
+Source: sources/opt/sand/sand-host/host-main.cjs
+
+684893: // src/host/agent-isolation/agent-worker-pool.ts
+684894: function defaultWorkerEntryPath2() {
+684895:   const here = (0, import_node_path138.dirname)((0, import_node_url13.fileURLToPath)(__import_meta_url));
+684896:   return (0, import_node_path138.join)(here, "agent-isolation", "agent-store-worker.cjs");
+684897: }
+684898: function rebuildWorkerError(response) {
+684899:   const error42 = new Error(response.message);
+684900:   if (response.name != null) error42.name = response.name;
+684901:   if (response.code != null) {
+684902:     error42.code = response.code;
+684903:   }
+684904:   return error42;
+684905: }
+684906: var AgentWorkerConnection = class {
+684907:   constructor(workerEntryPath, boot, onExit, reportHostLog) {
+684908:     this.onExit = onExit;
+684909:     this.worker = new import_node_worker_threads3.Worker(workerEntryPath, {
+684910:       workerData: boot,
+684911:       stdout: true,
+684912:       stderr: true
+684913:     });
+684914:     forwardStream(this.worker.stdout, (message) => reportHostLog("info", message));
+684915:     forwardStream(this.worker.stderr, (message) => reportHostLog("error", message));
+684916:     this.worker.on("message", (response) => {
+684917:       const entry = this.pending.get(response.requestId);
+684918:       if (entry == null) return;
+684919:       if (response.kind === "walk-export-closure-progress") {
+684920:         entry.onProgress?.(response.progress);
+684921:         return;
+684922:       }
+684923:       this.pending.delete(response.requestId);
+684924:       if (response.kind === "error") {
+684925:         entry.reject(rebuildWorkerError(response));
+684926:       } else {
+684927:         entry.resolve(response);
+684928:       }
+684929:     });
+684930:     this.worker.on("error", (error42) => this.die(error42));
+684931:     this.worker.on("exit", (code) => {
+684932:       if (code !== 0) this.die(new Error(`worker exited with code ${code}`));
+684933:       else this.die(new Error("worker exited"));
+684934:     });
+684935:   }
+684936:   onExit;
+684937:   worker;
+684938:   pending = /* @__PURE__ */ new Map();
+684939:   nextRequestId = 1;
+684940:   isDead = false;
+684941:   lastActivityAt = Date.now();
+684942:   workerThreadId = null;
+684943:   workerPid = null;
+684944:   die(error42) {
+684945:     if (this.isDead) return;
+684946:     this.isDead = true;
+684947:     for (const [, entry] of this.pending) entry.reject(error42);
+684948:     this.pending.clear();
+684949:     this.onExit(this);
+684950:   }
+684951:   send(build2, transfer = [], onProgress) {
+684952:     if (this.isDead) {
+684953:       return Promise.reject(new Error("worker is no longer running"));
+684954:     }
+684955:     this.lastActivityAt = Date.now();
+684956:     const requestId2 = this.nextRequestId++;
+684957:     const request5 = build2(requestId2);
+684958:     return new Promise((resolve30, reject2) => {
+684959:       this.pending.set(requestId2, {
+684960:         resolve: (response) => {
+684961:           this.lastActivityAt = Date.now();
+684962:           resolve30(response);
+684963:         },
+684964:         reject: (error42) => {
+684965:           this.lastActivityAt = Date.now();
+684966:           reject2(error42);
+684967:         },
+684968:         ...onProgress === void 0 ? {} : { onProgress }
+684969:       });
+684970:       this.worker.postMessage(request5, transfer);
+684971:     });
+684972:   }
+684973:   activityAt() {

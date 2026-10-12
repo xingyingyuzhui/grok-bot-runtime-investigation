@@ -1,0 +1,140 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+458717: var IDLE_ENDING_CHUNK_TYPES = /* @__PURE__ */ new Set([
+458718:   "text-delta",
+458719:   "tool-call-streaming-start",
+458720:   "tool-call-delta",
+458721:   "tool-call"
+458722: ]);
+458723: var THINKING_CHUNK_TYPES = /* @__PURE__ */ new Set([
+458724:   "reasoning",
+458725:   "reasoning-signature",
+458726:   "redacted-reasoning"
+458727: ]);
+458728: var STEER_IDLE_SAMPLE_PREEMPTED_REASON = "steer_preempted_idle_sample";
+458729: var IdleModelSamplePreempter = class {
+458730:   constructor(options2) {
+458731:     this.options = options2;
+458732:     this.idle = true;
+458733:     this.sawThinking = false;
+458734:     this.stopped = false;
+458735:     this.didPreempt = false;
+458736:     this.now = options2.now ?? (() => Date.now());
+458737:     this.setTimer = options2.setTimer ?? ((fn, ms2) => setTimeout(fn, ms2));
+458738:     this.clearTimer = options2.clearTimer ?? ((handle) => clearTimeout(handle));
+458739:     this.startedAtMs = this.now();
+458740:   }
+458741:   get preempted() {
+458742:     return this.didPreempt;
+458743:   }
+458744:   /** Ms between sample start and the preemption, for logging; undefined if none. */
+458745:   get preemptedAfterMs() {
+458746:     return this.didPreempt ? this.now() - this.startedAtMs : void 0;
+458747:   }
+458748:   get phase() {
+458749:     return this.sawThinking ? "thinking" : "no_output";
+458750:   }
+458751:   start() {
+458752:     if (this.stopped) {
+458753:       return;
+458754:     }
+458755:     this.unsubscribe = this.options.signal.onUserInjectionAdmitted(() => this.arm());
+458756:     if (this.options.signal.hasPendingUserInjections()) {
+458757:       this.arm();
+458758:     }
+458759:   }
+458760:   observeChunk(type2) {
+458761:     if (THINKING_CHUNK_TYPES.has(type2)) {
+458762:       this.sawThinking = true;
+458763:       return;
+458764:     }
+458765:     if (this.idle && IDLE_ENDING_CHUNK_TYPES.has(type2)) {
+458766:       this.idle = false;
+458767:       this.disarm();
+458768:     }
+458769:   }
+458770:   stop() {
+458771:     if (this.stopped) {
+458772:       return;
+458773:     }
+458774:     this.stopped = true;
+458775:     this.disarm();
+458776:     this.unsubscribe?.();
+458777:     this.unsubscribe = void 0;
+458778:   }
+458779:   arm() {
+458780:     if (this.stopped || !this.idle || this.didPreempt || this.timer !== void 0) {
+458781:       return;
+458782:     }
+458783:     const pendingSinceMs = this.options.policy.pendingSinceMs();
+458784:     const waitedMs = pendingSinceMs === void 0 ? 0 : Math.max(0, this.now() - pendingSinceMs);
+458785:     const delayMs = Math.max(0, this.options.policy.graceMs - waitedMs);
+458786:     this.timer = this.setTimer(() => {
+458787:       this.timer = void 0;
+458788:       this.fire();
+458789:     }, delayMs);
+458790:   }
+458791:   disarm() {
+458792:     if (this.timer !== void 0) {
+458793:       this.clearTimer(this.timer);
+458794:       this.timer = void 0;
+458795:     }
+458796:   }
+458797:   fire() {
+458798:     if (this.stopped || !this.idle || this.didPreempt || !this.options.signal.hasPendingUserInjections()) {
+458799:       return;
+458800:     }
+458801:     this.didPreempt = true;
+458802:     this.options.cancel({
+458803:       intentional: true,
+458804:       reason: STEER_IDLE_SAMPLE_PREEMPTED_REASON
+458805:     });
+458806:   }
+458807: };
+458808: function createIdleModelSamplePreempter(signal, cancel) {
+458809:   const policy = signal?.idleModelSamplePreemption;
+458810:   if (signal === void 0 || policy === void 0 || policy.graceMs < 0) {
+458811:     return void 0;
+458812:   }
+458813:   return new IdleModelSamplePreempter({ signal, policy, cancel });
+
+469000:       }
+469001:       const [cancellableStreamCtx, cancelStream] = ctx.withCancel();
+469002:       const idleSamplePreempter = createIdleModelSamplePreempter(this.conversationActionReceiver.getContextInjectionToolSignal?.(), cancelStream);
+469003:       const streamCtx = idleSamplePreempter === void 0 ? cancellableStreamCtx : withModelStreamChunkObserver(cancellableStreamCtx, (type2) => idleSamplePreempter.observeChunk(type2));
+469004:       idleSamplePreempter?.start();
+
+564668:   receiver(privacyMode) {
+564669:     const toolSignal = {
+564670:       hasPendingUserInjections: () => this.pending.length > 0,
+564671:       onUserInjectionAdmitted: (listener) => {
+564672:         this.admittedListeners.add(listener);
+564673:         return () => void this.admittedListeners.delete(listener);
+564674:       }
+564675:     };
+564676:     return {
+564677:       peek: (_ctx) => {
+564678:         this.settlePoppedAsDelivered();
+564679:         const head = this.pending[0];
+564680:         return Promise.resolve(
+564681:           head === void 0 ? void 0 : toRedactedConversationAction(head.action, privacyMode)
+564682:         );
+564683:       },
+564684:       pop: (_ctx) => {
+564685:         this.settlePoppedAsDelivered();
+564686:         const head = this.pending.shift();
+564687:         if (head === void 0) return Promise.resolve(void 0);
+564688:         this.poppedAwaitingTurn = head;
+564689:         return Promise.resolve(toRedactedConversationAction(head.action, privacyMode));
+564690:       },
+564691:       peekIsClaimedInjection: () => this.pending[0] !== void 0,
+564692:       failConsumedInjectionDelivery: () => {
+564693:         const popped = this.poppedAwaitingTurn;
+564694:         if (popped === void 0) return false;
+564695:         this.poppedAwaitingTurn = void 0;
+564696:         this.pending.unshift(popped);
+564697:         return true;
+564698:       },
+564699:       getContextInjectionToolSignal: () => toolSignal
+564700:     };
+

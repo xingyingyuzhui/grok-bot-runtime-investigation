@@ -1,0 +1,31 @@
+{
+  "source": "sources/opt/sand/sand-host/host-main.cjs",
+  "scope": "static wire schemas; no live responses or user workflow IDs",
+  "types": [
+    {
+      "type": "SendGrokBotUserMessageRequest",
+      "source_line": 263934,
+      "schema": "SendGrokBotUserMessageRequest|1 agent_id 9|2 message_id 9|3 text 9|4 sent_at_ms 3|5 rich_text 9?|6 reply_to_id 9?|7 is_fork 8|8 attachment_paths 9*|9 attachment_names 9*|10 traceparent 9?|11 enter_epoch_ms 3?|12 composed_at_ms 3?|13 source #0|14 mcp_config_json 9?|15 session_id 9|16 machine_id 9?|17 one_password_app_installed 8?|18 initiator #1|19 task_id 9?|21 send_source #2"
+    },
+    {
+      "type": "SendGrokBotUserMessageResponse",
+      "source_line": 263981,
+      "schema": "SendGrokBotUserMessageResponse|1 dispatched 8|2 mode #0|3 workflow_id 9?|4 delivery #1|5 refusal #2?"
+    },
+    {
+      "type": "InterruptGrokBotAgentRunRequest",
+      "source_line": 264169,
+      "schema": "InterruptGrokBotAgentRunRequest|1 agent_id 9|2 reason 9|3 session_id 9?"
+    },
+    {
+      "type": "InterruptGrokBotAgentRunResponse",
+      "source_line": 264191,
+      "schema": "InterruptGrokBotAgentRunResponse|1 had_active_run 8"
+    },
+    {
+      "type": "SendGrokBotAgentMessageRequest",
+      "source_line": 264846,
+      "schema": "SendGrokBotAgentMessageRequest|1 from_agent_id 9|2 to_agent_id 9|3 message_id 9|4 text 9|5 sent_at_ms 3|6 reply_to_id 9?"
+    }
+  ]
+}
