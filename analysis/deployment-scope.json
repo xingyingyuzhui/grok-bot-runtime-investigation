@@ -43,7 +43,8 @@
       "/var/lib/sand-daemon-supervisor/orbitd/bundled/orbitd"
     ],
     "temporal_sdk_markers_found": false,
-    "active_orbitd_release_not_inspected": true
+    "active_orbitd_release_not_inspected": false,
+    "followup_review": "current-daemon-review.json"
   },
   "new_static_files": [
     "sources/opt/sand/deps/runtime-deps-manifest.json",
@@ -62,5 +63,6 @@
     "sources/usr/local/bin/supervise-exec-daemon",
     "sources/usr/local/bin/supervise-sand-supervisor"
   ],
-  "remote_connection_limit": "SSH later timed out during banner exchange while jump-host port 2222 remained listening"
+  "remote_connection_limit": "SSH later timed out during banner exchange while jump-host port 2222 remained listening",
+  "followup_live_bundle_comparison": "live-bundle-comparison.json"
 }

@@ -1,0 +1,49 @@
+Source: sources/opt/sand/sand-host/host-main.cjs
+
+494618:     refuseUnboundSecretNames(args);
+494619:     const requestedCustomMode = args.customMode?.trim();
+494620:     if (requestedCustomMode !== void 0 && requestedCustomMode.length > 0) {
+494621:       requireCustomModesEnabled(deps);
+494622:     }
+494623:     const customModeFields = requestedCustomMode !== void 0 && requestedCustomMode.length > 0 ? passThroughCustomMode(requestedCustomMode) : void 0;
+494624:     const followupConversationAction = buildCloudAgentConversationAction(
+494625:       buildCloudAgentUserMessage({
+494626:         prompt: args.prompt,
+494627:         ...customModeFields,
+494628:         images: args.images,
+494629:         files: args.files,
+494630:         messageId: args.identity?.messageId
+494631:       })
+494632:     );
+494633:     const response = await client().addAsyncFollowupBackgroundComposer(
+494634:       new AddAsyncFollowupBackgroundComposerRequest({
+494635:         bcId: args.bcId,
+494636:         followupId: args.identity?.followupId,
+494637:         followupConversationAction,
+494638:         synchronous: args.interrupt ?? false,
+494639:         followupSource: BackgroundComposerSource.GROK_BOT,
+494640:         requestedModel: buildCloudAgentRequestedModel(args) ?? void 0
+494641:       })
+494642:     );
+494643:     return { runId: response.runId };
+494644:   }
+494645:   async function cancel(bcId) {
+494646:     await client().pauseBackgroundComposer(
+494647:       new PauseBackgroundComposerRequest({
+494648:         bcId,
+494649:         source: BackgroundComposerSource.GROK_BOT
+494650:       })
+494651:     );
+494652:   }
+494653:   async function rename6(bcId, newName) {
+494654:     await client().renameBackgroundComposer(new RenameBackgroundComposerRequest({ bcId, newName }));
+
+718185:   cloudAgentDurableWatch: false,
+718186:   /**
+718187:    * Statsig `grok_bot_cloud_agent_reply_modes`. Off: CloudAgent `reply` is
+718188:    * today's queue-or-interrupt follow-up. On: `reply` takes `mode`
+718189:    * (queue | steer | interrupt), where steer injects into the agent's running
+718190:    * turn and falls back to queue when it is idle. Temporal-only: the box host
+718191:    * has no steer port and pins it off.
+718192:    */
+718193:   cloudAgentReplyModes: false,

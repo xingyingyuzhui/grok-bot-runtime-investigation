@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-12",
+  "scope": "static binary marker checks and selected runtime metadata, no credential values or user content",
+  "orbitd": {
+    "path": "/var/lib/sand-daemon-supervisor/orbitd/releases/d2ed47598489aee9d5169669dec7253a8d71179d/orbitd",
+    "bytes": 20371216,
+    "running_executable_arg0_matches_path": true,
+    "markers": {
+      "go.temporal.io/sdk": false,
+      "temporalio": false,
+      "grok-bot-harness": false,
+      "workflow_id": false,
+      "task_queue": false,
+      "steer": false,
+      "SendGrokBotUserMessage": false
+    },
+    "interface": "orbit.v1.DaemonService",
+    "methods": [
+      "GetStatus",
+      "OpenSession",
+      "ListCaptures",
+      "RenewSession",
+      "UpdateAccessToken",
+      "UpdateConfiguration",
+      "CloseSession",
+      "StartOperation",
+      "EndOperation",
+      "AddArtifact"
+    ]
+  },
+  "supervisor": {
+    "path": "/usr/local/libexec/sand/sand-daemon-supervisor",
+    "bytes": 9022000,
+    "markers": {
+      "go.temporal.io/sdk": false,
+      "temporalio": false,
+      "grok-bot-harness": false,
+      "workflow_id": false,
+      "task_queue": false,
+      "steer": false,
+      "SendGrokBotUserMessage": false
+    }
+  },
+  "profile_harness_counts": {
+    "temporal": 17
+  },
+  "runtime_process_counts": {
+    "pod-daemon": 1,
+    "node": 76,
+    "sand-daemon-sup": 2,
+    "orbitd": 1
+  },
+  "limits": [
+    "orbitd state.json was not readable by the SSH user",
+    "current binary was examined for selected markers, not fully decompiled",
+    "process counts are a point-in-time observation; node processes include unrelated applications"
+  ]
+}

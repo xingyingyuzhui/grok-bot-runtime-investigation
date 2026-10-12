@@ -1,0 +1,67 @@
+{
+  "scope": "static symbols and externally supplied runner interfaces; not live feature-gate state",
+  "bundle_symbols": {
+    "host-main.cjs": {
+      "var SandAgentRunner =": 0,
+      "new SandAgentRunner(": 0,
+      "var SandSteerInbox =": 0,
+      "function createSubagentRuntime(": 0,
+      "function createCloudAgentTool(": 0
+    },
+    "sand-eval-runner.cjs": {
+      "var SandAgentRunner =": 1,
+      "new SandAgentRunner(": 1,
+      "var SandSteerInbox =": 1,
+      "function createSubagentRuntime(": 1,
+      "function createCloudAgentTool(": 0
+    }
+  },
+  "injected_ports": [
+    {
+      "name": "createCloudAgentTool",
+      "constructor_line": 567771,
+      "missing_factory_behavior": "CloudAgent tool builder returns an empty list"
+    },
+    {
+      "name": "detachedSubagents",
+      "constructor_line": 567754,
+      "calls": [
+        "dispatch",
+        "mintSubagentId",
+        "listRunning",
+        "getRunning",
+        "steer",
+        "abort",
+        "stopDelegatedWork"
+      ]
+    },
+    {
+      "name": "subagentOwnership",
+      "constructor_line": 567596
+    },
+    {
+      "name": "steerReach",
+      "constructor_line": 567604,
+      "default": "in-process"
+    }
+  ],
+  "eval_gates": {
+    "cloudAgentReplyModes_baseline": false,
+    "baseline_line": 571004,
+    "external_override_supported": true,
+    "override_lines": [
+      571075,
+      571078
+    ],
+    "live_rollout_flags_read": false
+  },
+  "cloud_agent_host_reply": {
+    "rpc": "addAsyncFollowupBackgroundComposer",
+    "interrupt_field": "synchronous = args.interrupt ?? false",
+    "source_line": 494633
+  },
+  "limitations": [
+    "symbol-name absence does not establish absence of renamed or dynamically supplied implementations",
+    "cloud account gates and actual provider implementation remain unverified"
+  ]
+}

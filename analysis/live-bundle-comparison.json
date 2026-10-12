@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-12",
+  "comparison": "same redaction normalization used for collected source; no remote file was changed",
+  "files": [
+    {
+      "file": "host-main.cjs",
+      "normalized_bytes": 28534838,
+      "normalized_sha256": "1f57bcae01edd69eca81727d78f25f107ceeb4b52711dfa3f2207d3d95296b0a",
+      "matches_collected": true
+    },
+    {
+      "file": "sand-eval-runner.cjs",
+      "normalized_bytes": 21512341,
+      "normalized_sha256": "4dc61781787129aa6509ae7c7f68e1693028a09df11c88d0b52f90269821007e",
+      "matches_collected": true
+    }
+  ]
+}

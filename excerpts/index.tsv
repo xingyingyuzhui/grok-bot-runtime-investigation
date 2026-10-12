@@ -22,3 +22,23 @@
 735713-sand-task-tool.ts.txt	../packages/grok-bot-harness/src/runner/subagents/sand-task-tool.ts	68 lines
 739198-wake-parent-tool.ts.txt	../packages/grok-bot-harness/src/runner/tools/wake-parent/wake-parent-tool.ts	22 lines
 739686-subagent-revival-prompt.ts.txt	../packages/grok-bot-harness/src/runner/subagent-revival-prompt.ts	7 lines
+binding-eval-cloud-agent-factory.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	33 numbered source lines
+binding-eval-detached-subagents.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	89 numbered source lines
+binding-eval-gates-and-overrides.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	49 numbered source lines
+binding-eval-runner-ports.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	53 numbered source lines
+binding-host-cloud-agent-followup.txt	sources/opt/sand/sand-host/host-main.cjs	46 numbered source lines
+current-host-orbit-service.txt	sources/opt/sand/sand-host/host-main.cjs	188 numbered source lines
+deep-eval-446569-mcp-steer-release.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	146 numbered source lines
+deep-eval-458711-idle-preemption.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	135 numbered source lines
+deep-eval-468200-queued-user-turns.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	147 numbered source lines
+deep-eval-476320-subagent-background-handoff.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	54 numbered source lines
+deep-eval-479192-await-release.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	100 numbered source lines
+deep-eval-485142-shell-background-handoff.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	89 numbered source lines
+deep-eval-568599-background-stop.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	41 numbered source lines
+deep-host-680191-cloud-send-boundary.txt	sources/opt/sand/sand-host/host-main.cjs	72 numbered source lines
+deep-host-684893-agent-store-worker-pool.txt	sources/opt/sand/sand-host/host-main.cjs	81 numbered source lines
+eval-504520-steer-prompt.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	6 numbered source lines
+eval-523378-user-message-reminders.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	35 numbered source lines
+eval-526093-subagent-runtime.ts.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	92 numbered source lines
+eval-564631-turn-steer.ts.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	83 numbered source lines
+eval-566183-turn-run-shell.ts.txt	sources/opt/sand/sand-host/sand-eval-runner.cjs	100 numbered source lines

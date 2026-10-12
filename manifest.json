@@ -11,13 +11,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 2244,
-      "sha256": "c686159e95e3174af21f891bc7a3620b57508844c9356bcb9be363ddd9d74279"
+      "bytes": 2456,
+      "sha256": "74f7e016a3d3600d935ed2c58f8e58defcd98452d087eba3222ba8c98bf63b6f"
     },
     {
       "path": "SECRET_SCAN.md",
-      "bytes": 1635,
-      "sha256": "06734ee7a79c101685b54a8d4428283244904448f6e277cce3ca7886a190ed1b"
+      "bytes": 1980,
+      "sha256": "d7caf0536a1fcb299ee6cdaac7bf88aed5c919996aa01920ffd8a0862ea0e45a"
     },
     {
       "path": "SSH补查.md",
@@ -30,9 +30,24 @@
       "sha256": "46a288ac0506251f9a0613110bba5778ff1b6769d281ec22b881f101c4c902f7"
     },
     {
+      "path": "analysis/current-daemon-review.json",
+      "bytes": 1631,
+      "sha256": "54e3dc09b24dad2fa9d94af5574360bd0424a8f7ea3a26dee89fb52046c18225"
+    },
+    {
       "path": "analysis/deployment-scope.json",
-      "bytes": 2341,
-      "sha256": "4465cc026c860f7af5c47e4838f97a93c86ca8e7fd9b101f424555245fe711ac"
+      "bytes": 2463,
+      "sha256": "b1b6e07c90ce2f3c40c48f86e5ec28ff2c322d9a5e5dc942cd8c05049a6eda36"
+    },
+    {
+      "path": "analysis/live-bundle-comparison.json",
+      "bytes": 567,
+      "sha256": "36c6e0caebf11feaebc0eb47bbc8242dcc053f58d29186dbdd3a92598592492f"
+    },
+    {
+      "path": "analysis/runtime-provider-map.json",
+      "bytes": 1821,
+      "sha256": "fa54f51e29e05096c6b16442af4f308d2a27afff377916601d2eed00c18373d4"
     },
     {
       "path": "analysis/steer_inbox_probe-result.json",
@@ -175,6 +190,36 @@
       "sha256": "239a655d7319ad052ad50d22c23e66e3ee01b5ca75c7eacbac46e28049a46639"
     },
     {
+      "path": "excerpts/binding-eval-cloud-agent-factory.txt",
+      "bytes": 2002,
+      "sha256": "3d3889c2a01d6bcd201e904e8bae05ff21427118a111e2f5a3a7bcf9ebdd81f9"
+    },
+    {
+      "path": "excerpts/binding-eval-detached-subagents.txt",
+      "bytes": 4775,
+      "sha256": "5e1a50fcc113f10616f74a1bd1ad44244c83f083aaeb51664dad7721a73b5abf"
+    },
+    {
+      "path": "excerpts/binding-eval-gates-and-overrides.txt",
+      "bytes": 3419,
+      "sha256": "8c9025e46082e123a3cede6e24149998f0a7039ceea2a62a633dabeb8ee51ae6"
+    },
+    {
+      "path": "excerpts/binding-eval-runner-ports.txt",
+      "bytes": 4212,
+      "sha256": "c12dd298a8ee1df31d90748f69dd7a5fd5f79838bfb1492eb8f5d0bc55aaba0d"
+    },
+    {
+      "path": "excerpts/binding-host-cloud-agent-followup.txt",
+      "bytes": 2296,
+      "sha256": "836aa37be85007689d67deaebbea608f1b340a31115fc5502f648d1094ac9514"
+    },
+    {
+      "path": "excerpts/current-host-orbit-service.txt",
+      "bytes": 7047,
+      "sha256": "228b245458ae5fb74d4c2ae35b71d34a8cb858f32832455bb0d97ef2922e88a0"
+    },
+    {
       "path": "excerpts/deep-eval-446569-mcp-steer-release.txt",
       "bytes": 7396,
       "sha256": "d83c43da66d9437b8e0cac468d4bda4d24d17a717e2e32e81e76452b6feab6a2"
@@ -246,8 +291,8 @@
     },
     {
       "path": "excerpts/index.tsv",
-      "bytes": 2393,
-      "sha256": "65a8b99c57f6c0c73e5d28b0f63770d525be1bb96445f2e3d8dd4a72d354daeb"
+      "bytes": 4575,
+      "sha256": "194bb8ff3d1b67a104d89c0e11d959f32010f24837fc91025382b6ff42302791"
     },
     {
       "path": "installed-skills/box-desktop.md",
@@ -480,6 +525,11 @@
       "sha256": "a006a7fea9103d0e49c6cd0e89dc1fe7d833e79a89fa05bb5c1423bc5ddfc49a"
     },
     {
+      "path": "sources/usr/local/libexec/sand/orbitd/start",
+      "bytes": 544,
+      "sha256": "af5b8b74311e2d76ab2645729f56a323f81d1b8e50f98856a0c1ba6b6c870936"
+    },
+    {
       "path": "sources/workspace/agents/_shared/call.py",
       "bytes": 2747,
       "sha256": "3fac1c0e8a4154e089042d6ffe4247032a71dbc36805fb8e56f8a6cd049959c4"
@@ -491,13 +541,18 @@
     },
     {
       "path": "扩大范围调查.md",
-      "bytes": 8565,
-      "sha256": "b764b600c7e03d589b4935ae2d3179afa4305721e74e086d685553dff3be477f"
+      "bytes": 9022,
+      "sha256": "36f263ca6de3a27ed0a878e33255da9622ffe0215e3ac801c5bdea1553315f6e"
+    },
+    {
+      "path": "接口绑定追踪.md",
+      "bytes": 6617,
+      "sha256": "a46197592c8c01b021b0da5d355dbdd7f6010a5b281e9665eb9f1776dd7a46bb"
     },
     {
       "path": "运行机制调查.md",
-      "bytes": 11447,
-      "sha256": "5948000b6bf5d2a1536c47eb441c43d2c751ff32cdfb3b814fdb7fc96ec147fc"
+      "bytes": 11364,
+      "sha256": "069973c848ae08813ed64c176ccff3aef6435f5b5f784e3950d085e24ec687fe"
     }
   ],
   "redactions": {
@@ -507,5 +562,7 @@
     "preserves_source_line_numbers": true
   },
   "followup_collection_date": "2026-10-12",
-  "expanded_collection_date": "2026-10-12"
+  "expanded_collection_date": "2026-10-12",
+  "provider_binding_review_date": "2026-10-12",
+  "current_deployment_review_date": "2026-10-12"
 }

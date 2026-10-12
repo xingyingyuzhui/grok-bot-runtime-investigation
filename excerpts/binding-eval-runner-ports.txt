@@ -1,0 +1,57 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+567596:     this.subagentOwnership = options2.subagentOwnership;
+567597:     this.metricsBackend = options2.metricsBackend;
+567598:     this.metricsHarness = options2.metricsHarness;
+567599:     this.metricsClientPlatform = options2.metricsClientPlatform;
+567600:     this.metricsSessionKind = options2.metricsSessionKind;
+567601:     this.metricsTurn = options2.metricsTurn;
+567602:     this.fireAndForgetCheckpoints = options2.fireAndForgetCheckpoints === true;
+567603:     this.chunkedStepWrites = options2.chunkedStepWrites;
+567604:     this.steerReach = options2.steerReach ?? { kind: "in-process" };
+
+567750:     this.serverReads = remoteBoxServerReads(options2);
+567751:     this.channelStore = options2.channelStore;
+567752:     this.connectorManifests = options2.connectorManifests ?? CONNECTOR_MANIFESTS;
+567753:     this.localToolPermission = options2.localToolPermission;
+567754:     this.detachedSubagents = options2.detachedSubagents;
+567755:     this.autoReviewController = options2.autoReviewController;
+567756:     this.autoReviewModes = options2.autoReviewModes ?? SAND_AUTO_REVIEW_MODES_OFF;
+567757:     this.getAutoReviewModes = options2.getAutoReviewModes;
+567758:     this.getAutoReviewInstructions = options2.getAutoReviewInstructions;
+567759:     this.attachBoxServers = options2.attachBoxServers;
+567760:     const audit = composeRunnerActionAudit(
+567761:       options2,
+567762:       () => this.activeTurnInitiatedBy,
+567763:       detectors.navigation
+567764:     );
+567765:     this.actionAuditSequencer = audit.sequencer;
+567766:     this.actionAuditor = audit.actionAuditor;
+567767:     this.autoReviewClassifierExecutor = audit.autoReviewClassifierExecutor;
+567768:     this.toolDecisionAudit = audit.toolDecisionAudit;
+567769:     this.toolTargets = audit.toolTargets;
+567770:     this.ctx = audit.withLedgers(this.ctx);
+567771:     this.createCloudAgentTool = options2.createCloudAgentTool;
+567772:     this.connectedActivity = options2.connectedActivity;
+567773:     this.cloudCanvas = options2.cloudCanvas;
+567774:     this.cloudAgentWatcher = options2.cloudAgentWatcher;
+567775:     this.resolveCloudAgentTitle = options2.resolveCloudAgentTitle;
+567776:     this.canvasCursorAgentIds = options2.canvasCursorAgentIds ?? /* @__PURE__ */ new Set();
+567777:     this.hiddenCursorAgentCardIds = options2.hiddenCursorAgentCardIds;
+567778:     this.sendToAgentImpl = options2.sendToAgent;
+
+571150:     ...options2.agentState == null ? {} : { agentState: options2.agentState },
+571151:     ...options2.automationStore == null ? {} : { automationStore: options2.automationStore },
+571152:     ...options2.allowStateToolWithSystemPromptOverride == null ? {} : { allowStateToolWithSystemPromptOverride: options2.allowStateToolWithSystemPromptOverride },
+571153:     ...options2.overriddenPromptStateTools == null ? {} : { overriddenPromptStateTools: options2.overriddenPromptStateTools },
+571154:     ...options2.autoReviewModes == null ? {} : { autoReviewModes: options2.autoReviewModes },
+571155:     ...options2.getAutoReviewModes == null ? {} : { getAutoReviewModes: options2.getAutoReviewModes },
+571156:     ...options2.autoReviewClassifierExecutor == null ? {} : { autoReviewClassifierExecutor: options2.autoReviewClassifierExecutor },
+571157:     ...options2.autoReviewController == null ? {} : { autoReviewController: options2.autoReviewController },
+571158:     ...options2.getAutoReviewInstructions == null ? {} : { getAutoReviewInstructions: options2.getAutoReviewInstructions },
+571159:     ...options2.getAgentId == null ? {} : { getAgentId: options2.getAgentId },
+571160:     ...options2.sendToAgent == null ? {} : { sendToAgent: options2.sendToAgent },
+571161:     ...options2.agentManagement == null ? {} : { agentManagement: options2.agentManagement },
+571162:     ...options2.agentProfileProvider == null ? {} : { agentProfileProvider: options2.agentProfileProvider },
+571163:     ...options2.createCloudAgentTool == null ? {} : { createCloudAgentTool: options2.createCloudAgentTool },
+571164:     ...options2.resolveCloudAgentTitle == null ? {} : { resolveCloudAgentTitle: options2.resolveCloudAgentTitle },

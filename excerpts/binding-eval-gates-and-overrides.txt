@@ -1,0 +1,53 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+570983: var EVAL_RUNNER_PIN = "the eval runner reads no rollout flags; the gate stays at its default";
+570984: function composeEvalRunnerGates(overrides = {}) {
+570985:   const baseline = composeSandRunnerGates({
+570986:     memoryFactsInUserInfo: fixedGate(true, EVAL_RUNNER_PIN),
+570987:     playwrightPostActionWaitQuiet: fixedGate(false, EVAL_RUNNER_PIN),
+570988:     cancelledToolCallOutcome: fixedGate(false, EVAL_RUNNER_PIN),
+570989:     mcpArgumentUnmatchedRename: fixedGate(false, EVAL_RUNNER_PIN),
+570990:     mcpArgumentRepairSinglePass: fixedGate(false, EVAL_RUNNER_PIN),
+570991:     toolArgumentAliases: fixedGate(false, EVAL_RUNNER_PIN),
+570992:     formVault: fixedGate(false, EVAL_RUNNER_PIN),
+570993:     draftExternalMessage: fixedGate(false, EVAL_RUNNER_PIN),
+570994:     draftExternalMessageByDefault: fixedGate(false, EVAL_RUNNER_PIN),
+570995:     autoReviewSelector: fixedGate(false, EVAL_RUNNER_PIN),
+570996:     agentPromptedCookieSync: fixedGate(false, EVAL_RUNNER_PIN),
+570997:     stripeLink: fixedGate(false, EVAL_RUNNER_PIN),
+570998:     mcpMultiAccount: fixedGate(false, EVAL_RUNNER_PIN),
+570999:     unicodeTyping: fixedGate(false, EVAL_RUNNER_PIN),
+571000:     cloudAgentsDisabledByTeam: fixedGate(false, EVAL_RUNNER_PIN),
+571001:     cloudAgentsUnavailableOnPlan: fixedGate(false, EVAL_RUNNER_PIN),
+571002:     cloudAgentArtifacts: fixedGate(false, EVAL_RUNNER_PIN),
+571003:     cloudAgentDurableWatch: fixedGate(false, EVAL_RUNNER_PIN),
+571004:     cloudAgentReplyModes: fixedGate(false, EVAL_RUNNER_PIN),
+571005:     hackySymbolicToolCalls: fixedGate(false, EVAL_RUNNER_PIN),
+571006:     cloudAgentPublishRepository: fixedGate(false, EVAL_RUNNER_PIN),
+571007:     appsPublish: fixedGate(false, EVAL_RUNNER_PIN),
+571008:     cloudAgentPublishApp: fixedGate(false, EVAL_RUNNER_PIN),
+571009:     originBuiltinMounted: fixedGate(false, EVAL_RUNNER_PIN),
+571010:     frozenToolDescriptions: fixedGate(false, EVAL_RUNNER_PIN),
+571011:     checkSubscriptionUsage: fixedGate(false, EVAL_RUNNER_PIN),
+571012:     searchBotTemplates: fixedGate(false, EVAL_RUNNER_PIN),
+571013:     connectedActivity: fixedGate(false, EVAL_RUNNER_PIN),
+571014:     cloudAgentExchange: fixedGate(false, EVAL_RUNNER_PIN),
+
+571073:   });
+571074:   const gates = { ...baseline };
+571075:   for (const name17 in overrides) {
+571076:     if (!isKeyOf(gates, name17)) continue;
+571077:     const value = overrides[name17];
+571078:     if (value !== void 0) gates[name17] = () => value;
+571079:   }
+571080:   return gates;
+571081: }
+
+571111:   const localAttachments = options2.generateImageStub == null ? void 0 : createLocalAttachmentStore(options2.generateImageStub.agentDir);
+571112:   const ingestAttachment = options2.ingestAttachment ?? localAttachments?.ingestAttachment;
+571113:   const persistMediaBytes = options2.persistMediaBytes ?? localAttachments?.persistMediaBytes;
+571114:   const userMachines = options2.userMachineFixtures == null ? void 0 : createSandEvalUserMachines(options2.userMachineFixtures);
+571115:   const gates = composeEvalRunnerGates(options2.evalGateOverrides);
+571116:   const executor = options2.executorSubagent === true && options2.automationSubagent == null;
+571117:   const executorSystemPrompt = executor && options2.systemPrompt == null ? buildSandSubagentSystemPrompt({
+571118:     subagentType: EXECUTOR_SUBAGENT_TYPE,

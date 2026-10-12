@@ -1,0 +1,93 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+546186:     const detached = host.detachedSubagents;
+546187:     const subagentController = detached !== void 0 ? {
+546188:       listRunningSubagents: () => detached.listRunning(),
+546189:       getRunningSubagent: (subagentAgentId) => detached.getRunning(subagentAgentId),
+546190:       steerSubagent: (subagentAgentId, message) => detached.steer({ subagentAgentId, message }),
+546191:       abortSubagent: (subagentAgentId) => detached.abort(subagentAgentId),
+546192:       ...detached.stopDelegatedWork === void 0 ? {} : { stopDelegatedWork: detached.stopDelegatedWork.bind(detached) }
+546193:     } : {
+546194:       listRunningSubagents: () => host.listRunningSubagents(),
+546195:       getRunningSubagent: (subagentAgentId) => host.getRunningSubagent(subagentAgentId),
+546196:       steerSubagent: (subagentAgentId, message) => host.steerSubagent(subagentAgentId, message),
+546197:       abortSubagent: (subagentAgentId) => host.abortSubagent(subagentAgentId)
+
+559037:       __callDispose(_stack, _error, _hasError);
+559038:     }
+559039:   }
+559040:   async createOrResume(args) {
+559041:     if (this.detached !== void 0) {
+559042:       if (args.resumeAgentId != null && args.resumeAgentId.length > 0) {
+559043:         return args.resumeAgentId;
+559044:       }
+559045:       if (this.detached.mintSubagentId !== void 0) {
+559046:         return await this.detached.mintSubagentId({
+559047:           subagentType: args.subagentType || EXECUTOR_SUBAGENT_TYPE,
+559048:           prompt: args.prompt,
+559049:           readonly: args.readonly
+559050:         });
+559051:       }
+559052:       return `${SAND_SUBAGENT_ID_PREFIX}${crypto.randomUUID()}`;
+559053:     }
+559054:     if (args.resumeAgentId != null && args.resumeAgentId.length > 0) {
+559055:       if (this.dispatcher.isRunning(args.resumeAgentId)) {
+559056:         throw new SandSubagentDispatchError(
+
+559184:     }
+559185:     const lineage = deriveSandRequestLineage(ctx, args.toolCallId, this.fallbackLineage);
+559186:     const videoAttachments = (args.selectedContext?.selectedVideos ?? []).map((video) => ({
+559187:       uuid: video.uuid,
+559188:       path: video.path,
+559189:       mimeType: video.mimeType,
+559190:       filename: video.filename,
+559191:       fps: video.fps ?? 0
+559192:     }));
+559193:     let handedOver = true;
+559194:     try {
+559195:       const decision = this.dispatcher.getCombinedComputerUseDecision?.();
+559196:       const modelId = resolveSandSubagentModelId({
+559197:         subagentType: args.subagentType,
+559198:         modelId: args.modelId,
+559199:         acceptsExplicitModel: isMediaReviewSubagentType(args.subagentType),
+559200:         executorProfileNames: this.executorProfileNames?.() ?? /* @__PURE__ */ new Set()
+559201:       });
+559202:       const eventSequence = this.sessionEventSequence(args.subagentType, lineage);
+559203:       const outcome = await detached.dispatch({
+559204:         ...decision === void 0 ? {} : { combinedComputerUseDecision: decision },
+559205:         subagentAgentId: agentId,
+559206:         subagentType: args.subagentType || EXECUTOR_SUBAGENT_TYPE,
+559207:         toolCallId: args.toolCallId,
+559208:         prompt: this.subagentTask(args),
+559209:         ...forkedContext === void 0 ? {} : { forkedContext },
+559210:         ...eventSequence === void 0 ? {} : { eventSequence },
+559211:         readonly: args.readonly ?? false,
+559212:         ...modelId === void 0 ? {} : { modelId },
+559213:         resume: args.resumeAgentId != null && args.resumeAgentId.length > 0,
+559214:         ...videoAttachments.length > 0 ? { videoAttachments } : {},
+559215:         ...imageAttachments.length > 0 ? { imageAttachments } : {},
+559216:         ...lineage != null ? {
+559217:           lineage: {
+559218:             parentRequestId: lineage.parentRequestId,
+559219:             rootParentRequestId: lineage.rootParentRequestId
+559220:           }
+559221:         } : {},
+559222:         ...definedProvenance({
+559223:           quietOrigin: this.quietOrigin,
+559224:           originatingFlow: originatingFlowOf(ctx)
+559225:         })
+559226:       });
+559227:       if (outcome?.alreadyDispatched === true) handedOver = false;
+559228:     } catch (error3) {
+559229:       return { status: "error", error: error3 instanceof Error ? error3.message : String(error3) };
+559230:     }
+559231:     if (handedOver) {
+559232:       recordDelegationDispatched(ctx, {
+559233:         delegationKind: "subagent_spawn",
+559234:         targetId: agentId,
+559235:         toolCallId: args.toolCallId
+559236:       });
+559237:     }
+559238:     return {
+559239:       status: "background",
+559240:       backgroundReason: SubagentBackgroundReason.AGENT_REQUEST,

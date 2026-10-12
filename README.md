@@ -7,6 +7,7 @@
 - [运行机制调查](运行机制调查.md)：调查结论、证据与已确认范围。
 - [SSH 补查](SSH补查.md)：消息注入、子代理中断后继续执行、未完成任务提醒的组装代码。
 - [扩大范围调查](扩大范围调查.md)：部署查找范围、完整消费链、工具等待释放及策略开启条件。
+- [接口绑定追踪](接口绑定追踪.md)：runner 外部依赖、detached 子代理、CloudAgent 工具工厂与评估开关。
 - [代码证据](evidence.txt)和[摘录索引](excerpts/index.tsv)：定位原始模块与行号。
 - [通用 skills](installed-skills/)：routines、channels、box-desktop、code-changes 等配套说明。
 
@@ -20,8 +21,9 @@
 - sources/opt/sand/sand-host/sand-eval-runner.cjs：评估运行程序，包含共享 runner 和子代理控制实现。
 - sources/exec-daemon/：工具执行服务及其 JS 分块。
 - sources/usr/local/bin/：监督启动、桌面启动、桌面分流等脚本。
+- sources/usr/local/libexec/sand/orbitd/start：orbitd 的监督启动入口。
 - sources/workspace/：通用 MCP 启动器和调用客户端。
-- excerpts/：相关模块的摘录；每行前面的数字是原始主程序的一基行号。
+- excerpts/：相关模块的摘录；摘录中的数字是所标注 bundle 的一基行号。
 - installed-skills/：routines、box-desktop、code-changes、channels、no-connector-fallback 的通用说明。
 - evidence.txt、evidence-index.json：关键代码证据及定位索引。
 - 运行机制调查.md：调查说明；链接改为包内相对路径。
@@ -29,4 +31,4 @@
 
 ## 资料范围
 
-资料包含 43 个静态代码及配套文件和相关模块摘录，供运行机制调查和代码阅读。未包含完整依赖、系统镜像、平台服务端源码；云端调度细节和本次会话的全部 feature gate 尚未确认。
+资料包含 44 个静态代码及配套文件和相关模块摘录，供运行机制调查和代码阅读。未包含完整依赖、系统镜像、平台服务端源码；云端调度细节和本次会话的全部 feature gate 尚未确认。

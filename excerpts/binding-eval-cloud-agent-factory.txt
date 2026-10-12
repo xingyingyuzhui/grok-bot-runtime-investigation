@@ -1,0 +1,35 @@
+Source: sources/opt/sand/sand-host/sand-eval-runner.cjs
+
+552794:           extractConversationContext: extractAutoReviewConversationContext3
+552795:         }
+552796:       });
+552797:     };
+552798:     if (host.createCloudAgentTool == null) return [];
+552799:     const scmConnectCard = host.gates.scmConnectCard();
+552800:     const offersScmConnectCard = scmConnectCard && ctx.decisions.offers("RequestScmConnect");
+552801:     return [
+552802:       host.createCloudAgentTool({
+552803:         fallbackLineage: turn.childRequestLineage,
+552804:         ...reviewAction2 !== void 0 ? { reviewAction: reviewAction2 } : {},
+552805:         ...scmConnectCard ? { scmConnectCard } : {},
+552806:         ...offersScmConnectCard ? {
+552807:           describeScmConnect: async ({ repoUrl, rejection, knownIntent, blockedAction }) => describeScmConnectBlocker({
+552808:             provider: detectScmProviderForRepoUrl(repoUrl),
+552809:             ...repoUrl == null ? {} : { repoUrl },
+552810:             ...rejection == null ? {} : { rejection },
+552811:             ...knownIntent == null ? {} : { knownIntent },
+552812:             ...host.isListenerPlatformConnected != null ? { isConnected: host.isListenerPlatformConnected } : {},
+552813:             blockedAction
+552814:           })
+552815:         } : {},
+552816:         isCanvasesEnabled: false,
+552817:         artifactsEnabled: host.gates.cloudAgentArtifacts(),
+552818:         durableWatchEnabled: host.gates.cloudAgentDurableWatch(),
+552819:         replyModesEnabled: host.gates.cloudAgentReplyModes(),
+552820:         publishRepositoryEnabled: host.gates.cloudAgentPublishRepository(),
+552821:         appsPublishEnabled: host.gates.appsPublish(),
+552822:         publishAppEnabled: host.gates.appsPublish() && host.gates.cloudAgentPublishApp(),
+552823:         originBuiltinEnabled: host.gates.originBuiltinMounted(),
+552824:         ...cloudAgentExchangeToolFields(host)
+552825:       }),
+552826:       ...offersScmConnectCard ? [
